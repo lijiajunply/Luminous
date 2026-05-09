@@ -29,12 +29,12 @@ Thumbs.db
 # Config
 config.yaml
 
-#postman
+# Postman
 .postman/
 postman/
 
-#claude
+# Claude
 .claude/
 
-#Ref
+# ReferenceCode
 Ref/

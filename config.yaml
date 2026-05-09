@@ -1,0 +1,19 @@
+server:
+  port: 8080
+  mode: debug
+
+auth:
+  admin_token: "luminous-admin-secret-token"
+
+data:
+  schools_file: "./data/schools.json"
+
+schools:
+  xauat:
+    base_url: "https://swjw.xauat.edu.cn"
+    login_url: "https://schedule.xauat.site"
+    old_bus_url: "https://school-bus.xauat.edu.cn"
+    new_bus_url: "https://bcdd.xauat.edu.cn"
+    semester_start: "2026-03-01"
+    semester_end: "2026-07-18"
+    payment_oauth_secret: "Basic bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm06bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm1fc2VjcmV0"

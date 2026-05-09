@@ -3,7 +3,7 @@ server:
   mode: debug
 
 auth:
-  admin_token: "luminous-admin-secret-token"
+  admin_token: "your-admin-secret-token"
 
 data:
   schools_file: "./data/schools.json"
@@ -16,4 +16,4 @@ schools:
     new_bus_url: "https://bcdd.xauat.edu.cn"
     semester_start: "2026-03-01"
     semester_end: "2026-07-18"
-    payment_oauth_secret: "Basic bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm06bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm1fc2VjcmV0"
+    payment_oauth_secret: "your-payment-oauth-secret"

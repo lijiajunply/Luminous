@@ -26,6 +26,9 @@ Thumbs.db
 .env
 .env.local
 
+# Config
+config.yaml
+
 
 #claude
 .claude/

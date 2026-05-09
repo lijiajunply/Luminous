@@ -29,6 +29,9 @@ Thumbs.db
 # Config
 config.yaml
 
+#postman
+.postman/
+postman/
 
 #claude
 .claude/

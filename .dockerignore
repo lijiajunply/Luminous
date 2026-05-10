@@ -1,0 +1,46 @@
+# Git
+.git/
+.gitignore
+
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config (mounted at runtime)
+config.yaml
+.env
+.env.local
+
+# Docs
+README.md
+LICENSE
+
+# Postman
+.postman/
+postman/
+
+# Claude
+.claude/
+
+# Reference
+Ref/
+
+# Docker
+Dockerfile
+.dockerignore

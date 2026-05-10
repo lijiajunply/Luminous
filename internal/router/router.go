@@ -15,10 +15,18 @@ func SetupRouter(
 	appHandler *handler.AppHandler,
 	schoolServices ...handler.SchoolServiceHandler,
 ) *gin.Engine {
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Logger())
+	r.Use(gin.Recovery())
 	r.Use(middleware.RequestIDMiddleware())
 	r.Use(middleware.CORSMiddleware())
 	r.Use(middleware.MetricsMiddleware())
+
+	// Trust all proxies so that X-Forwarded-* headers work correctly
+	// behind reverse proxies (nginx, traefik, etc.) in Docker deployments.
+	if err := r.SetTrustedProxies(nil); err != nil {
+		panic(err)
+	}
 	r.GET("/metrics", middleware.MetricsHandler())
 	r.GET("/healthz", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 

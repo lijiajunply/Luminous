@@ -12,6 +12,7 @@ import (
 func SetupRouter(
 	schoolHandler *handler.SchoolHandler,
 	adminHandler *handler.AdminHandler,
+	appHandler *handler.AppHandler,
 	schoolServices ...handler.SchoolServiceHandler,
 ) *gin.Engine {
 	r := gin.Default()
@@ -25,6 +26,8 @@ func SetupRouter(
 	{
 		v1.GET("/schools", schoolHandler.ListSchools)
 		v1.GET("/schools/:code", schoolHandler.GetSchool)
+		v1.GET("/App", appHandler.GetTag)
+		v1.GET("/GetTag", appHandler.GetTagModel)
 
 		for _, svc := range schoolServices {
 			svc.RegisterRoutes(v1.Group("/schools/" + svc.Code()))

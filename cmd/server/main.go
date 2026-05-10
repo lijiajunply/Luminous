@@ -40,8 +40,9 @@ func main() {
 	schoolHandler := handler.NewSchoolHandler(repo)
 	adminHandler := handler.NewAdminHandler(repo)
 	xauatHandler := handler.NewXAUATHandler()
+	appHandler := handler.NewAppHandler()
 
-	r := router.SetupRouter(schoolHandler, adminHandler, xauatHandler)
+	r := router.SetupRouter(schoolHandler, adminHandler, appHandler, xauatHandler)
 
 	addr := fmt.Sprintf(":%d", config.Cfg.Server.Port)
 	srv := &http.Server{

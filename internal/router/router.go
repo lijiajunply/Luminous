@@ -27,7 +27,7 @@ func SetupRouter(
 		v1.GET("/schools", schoolHandler.ListSchools)
 		v1.GET("/schools/:code", schoolHandler.GetSchool)
 		v1.GET("/App", appHandler.GetTag)
-		v1.GET("/GetTag", appHandler.GetTagModel)
+		v1.GET("/App/GetTag", appHandler.GetTagModel)
 
 		for _, svc := range schoolServices {
 			svc.RegisterRoutes(v1.Group("/schools/" + svc.Code()))

@@ -10,7 +10,7 @@ const (
 	FeatureGPACalc       Feature = "gpa_calculation"  // GPA计算
 	FeatureCourseSelect  Feature = "course_selection" // 选课
 	FeatureExamSchedule  Feature = "exam_schedule"    // 考试安排
-	FeatureLogin         Feature = "login"            // SSO登录
+	FeatureLogin         Feature = "login"            // 登录，最基础服务，必须满足
 	FeatureBusSchedule   Feature = "bus_schedule"     // 校车时刻表
 	FeatureProgram       Feature = "program"          // 培养方案
 	FeatureStudyProgress Feature = "study_progress"   // 学业进度

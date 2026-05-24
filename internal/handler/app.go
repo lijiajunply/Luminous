@@ -2,10 +2,7 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
-	"os"
 
 	"luminous/internal/model"
 
@@ -16,33 +13,6 @@ type AppHandler struct{}
 
 func NewAppHandler() *AppHandler {
 	return &AppHandler{}
-}
-
-func (h *AppHandler) GetTag(c *gin.Context) {
-	token := c.Query("token")
-	if token == "" {
-		token = os.Getenv("GITEE_ACCESS_TOKEN")
-	}
-
-	apiUrl := fmt.Sprintf("https://gitee.com/api/v5/repos/luckyfishisdashen/iOSClub.AppMobile/releases?access_token=%s&page=1&per_page=1&direction=desc", token)
-
-	resp, err := http.Get(apiUrl)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法连接到Gitee API"})
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		c.JSON(resp.StatusCode, gin.H{"error": "获取标签失败"})
-		return
-	}
-
-	body, _ := io.ReadAll(resp.Body)
-
-	// 直接返回 Gitee 的原始 JSON 字符串
-	c.Header("Content-Type", "application/json")
-	c.String(http.StatusOK, string(body))
 }
 
 func (h *AppHandler) GetTagModel(c *gin.Context) {

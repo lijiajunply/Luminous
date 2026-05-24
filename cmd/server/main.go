@@ -14,7 +14,6 @@ import (
 	"luminous/internal/handler"
 	"luminous/internal/repository"
 	"luminous/internal/router"
-	"luminous/internal/school/xauat"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,8 +28,6 @@ func main() {
 
 	gin.SetMode(config.Cfg.Server.Mode)
 
-	xauat.Init(config.Cfg.Schools.XAUAT)
-
 	repo, err := repository.NewJSONSchoolRepository(config.Cfg.Data.SchoolsFile)
 	if err != nil {
 		slog.Error("Failed to initialize repository", "error", err)
@@ -39,10 +36,9 @@ func main() {
 
 	schoolHandler := handler.NewSchoolHandler(repo)
 	adminHandler := handler.NewAdminHandler(repo)
-	xauatHandler := handler.NewXAUATHandler()
 	appHandler := handler.NewAppHandler()
 
-	r := router.SetupRouter(schoolHandler, adminHandler, appHandler, xauatHandler)
+	r := router.SetupRouter(schoolHandler, adminHandler, appHandler)
 
 	addr := fmt.Sprintf(":%d", config.Cfg.Server.Port)
 	srv := &http.Server{
@@ -72,6 +68,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	xauat.Shutdown()
 	slog.Info("Server exited")
 }

@@ -13,25 +13,6 @@
     "created_at": "2026-04-29T23:05:14.4986461+08:00",
     "updated_at": "2026-04-29T23:05:14.4986461+08:00"
   },
-  "XAUAT": {
-    "code": "XAUAT",
-    "name": "西安建筑科技大学",
-    "website": "https://www.xauat.edu.cn",
-    "features": [
-      "login",
-      "timetable",
-      "grade_query",
-      "gpa_calculation",
-      "exam_schedule",
-      "semester_info",
-      "bus_schedule",
-      "program",
-      "study_progress"
-    ],
-    "enabled": true,
-    "created_at": "2026-01-01T00:00:00Z",
-    "updated_at": "2026-01-01T00:00:00Z"
-  },
   "XDU": {
     "code": "XDU",
     "name": "西安电子科技大学",

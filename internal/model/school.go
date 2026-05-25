@@ -5,16 +5,15 @@ import "time"
 type Feature string
 
 const (
-	FeatureTimetable     Feature = "timetable"        // 课表显示
-	FeatureGradeQuery    Feature = "grade_query"      // 成绩查询
-	FeatureGPACalc       Feature = "gpa_calculation"  // GPA计算
-	FeatureCourseSelect  Feature = "course_selection" // 选课
-	FeatureExamSchedule  Feature = "exam_schedule"    // 考试安排
-	FeatureLogin         Feature = "login"            // 登录，最基础服务，必须满足
-	FeatureBusSchedule   Feature = "bus_schedule"     // 校车时刻表
-	FeatureProgram       Feature = "program"          // 培养方案
-	FeatureStudyProgress Feature = "study_progress"   // 学业进度
-	FeatureSemesterInfo  Feature = "semester_info"    // 学期信息
+	FeatureTimetable     Feature = "timetable"       // 日历功能
+	FeatureGradeQuery    Feature = "grade_query"     // 成绩查询
+	FeatureGPACalc       Feature = "gpa_calculation" // GPA计算，需要成绩查询功能支持
+	FeatureCourseSelect  Feature = "course_schedule" // 课程显示
+	FeatureExamSchedule  Feature = "exam_schedule"   // 考试安排
+	FeatureLogin         Feature = "login"           // 登录，最基础服务，必须满足
+	FeatureBusSchedule   Feature = "bus_schedule"    // 校车时刻表
+	FeatureProgram       Feature = "program"         // 培养方案
+	FeatureStudyProgress Feature = "study_progress"  // 学业进度
 )
 
 var validFeatures = map[Feature]bool{
@@ -27,7 +26,6 @@ var validFeatures = map[Feature]bool{
 	FeatureBusSchedule:   true,
 	FeatureProgram:       true,
 	FeatureStudyProgress: true,
-	FeatureSemesterInfo:  true,
 }
 
 func IsValidFeature(f Feature) bool {

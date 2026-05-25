@@ -20,10 +20,10 @@
     "features": [
       "login",
       "timetable",
+      "course_schedule",
       "grade_query",
       "gpa_calculation",
       "exam_schedule",
-      "semester_info",
       "bus_schedule",
       "program",
       "study_progress"

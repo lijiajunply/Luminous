@@ -38,7 +38,7 @@
   "XDU": {
     "code": "XDU",
     "name": "西安电子科技大学",
-    "website": "https://xidianapi.xauat.site",
+    "website": "https://xidianapi.xauat.site/v1",
     "features": [
       "timetable",
       "grade_query",

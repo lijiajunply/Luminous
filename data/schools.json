@@ -26,7 +26,10 @@
       "exam_schedule",
       "bus_schedule",
       "program",
-      "study_progress"
+      "study_progress",
+      "electricity",
+      "payment",
+      "map"
     ],
     "enabled": true,
     "created_at": "2026-01-01T00:00:00Z",

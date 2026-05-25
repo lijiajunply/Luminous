@@ -2,8 +2,6 @@ package util
 
 import (
 	"crypto/rand"
-	"crypto/tls"
-	"fmt"
 	"io"
 	"math/big"
 	"net/http"
@@ -40,42 +38,10 @@ type HTTPClient struct {
 	client *http.Client
 }
 
-var allowedTLSSkipHosts = []string{
-	"xauat.edu.cn",
-	"xauat.site",
-}
-
-// newTransport creates a transport that skips TLS verification only for
-// known university domains (self-signed/internal CA certs). Connections
-// to any other host will fail TLS verification.
-func newTransport() *http.Transport {
-	return &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-			VerifyConnection: func(cs tls.ConnectionState) error {
-				if isAllowedTLSSkipHost(cs.ServerName) {
-					return nil
-				}
-				return fmt.Errorf("tls: insecure skip refused for host %q (not in allow-list)", cs.ServerName)
-			},
-		},
-	}
-}
-
-func isAllowedTLSSkipHost(host string) bool {
-	for _, h := range allowedTLSSkipHosts {
-		if host == h || strings.HasSuffix(host, "."+h) {
-			return true
-		}
-	}
-	return false
-}
-
 func NewHTTPClient() *HTTPClient {
 	return &HTTPClient{
 		client: &http.Client{
-			Timeout:   DefaultTimeout,
-			Transport: newTransport(),
+			Timeout: DefaultTimeout,
 		},
 	}
 }

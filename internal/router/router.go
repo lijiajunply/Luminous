@@ -1,8 +1,6 @@
 package router
 
 import (
-	"net/http"
-
 	"luminous/internal/handler"
 	"luminous/internal/middleware"
 
@@ -15,19 +13,23 @@ func SetupRouter(
 	appHandler *handler.AppHandler,
 	schoolServices ...handler.SchoolServiceHandler,
 ) *gin.Engine {
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Logger())
+	r.Use(gin.Recovery())
 	r.Use(middleware.RequestIDMiddleware())
 	r.Use(middleware.CORSMiddleware())
-	r.Use(middleware.MetricsMiddleware())
-	r.GET("/metrics", middleware.MetricsHandler())
-	r.GET("/healthz", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+
+	// Trust all proxies so that X-Forwarded-* headers work correctly
+	// behind reverse proxies (nginx, traefik, etc.) in Docker deployments.
+	if err := r.SetTrustedProxies(nil); err != nil {
+		panic(err)
+	}
 
 	v1 := r.Group("/api/v1")
 	{
 		v1.GET("/schools", schoolHandler.ListSchools)
 		v1.GET("/schools/:code", schoolHandler.GetSchool)
-		v1.GET("/App", appHandler.GetTag)
-		v1.GET("/App/GetTag", appHandler.GetTagModel)
+		v1.GET("/App", appHandler.GetTagModel)
 
 		for _, svc := range schoolServices {
 			svc.RegisterRoutes(v1.Group("/schools/" + svc.Code()))

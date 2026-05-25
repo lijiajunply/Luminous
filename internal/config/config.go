@@ -19,25 +19,10 @@ type DataConfig struct {
 	SchoolsFile string `mapstructure:"schools_file"`
 }
 
-type XAUATConfig struct {
-	BaseURL            string `mapstructure:"base_url"`
-	LoginURL           string `mapstructure:"login_url"`
-	OldBusURL          string `mapstructure:"old_bus_url"`
-	NewBusURL          string `mapstructure:"new_bus_url"`
-	SemesterStart      string `mapstructure:"semester_start"`
-	SemesterEnd        string `mapstructure:"semester_end"`
-	PaymentOAuthSecret string `mapstructure:"payment_oauth_secret"`
-}
-
-type SchoolsConfig struct {
-	XAUAT XAUATConfig `mapstructure:"xauat"`
-}
-
 type AppConfig struct {
-	Server  ServerConfig  `mapstructure:"server"`
-	Auth    AuthConfig    `mapstructure:"auth"`
-	Data    DataConfig    `mapstructure:"data"`
-	Schools SchoolsConfig `mapstructure:"schools"`
+	Server ServerConfig `mapstructure:"server"`
+	Auth   AuthConfig   `mapstructure:"auth"`
+	Data   DataConfig   `mapstructure:"data"`
 }
 
 var Cfg *AppConfig

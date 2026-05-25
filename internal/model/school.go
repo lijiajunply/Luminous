@@ -14,6 +14,9 @@ const (
 	FeatureBusSchedule   Feature = "bus_schedule"    // 校车时刻表
 	FeatureProgram       Feature = "program"         // 培养方案
 	FeatureStudyProgress Feature = "study_progress"  // 学业进度
+	FeatureElectricity   Feature = "electricity"     // 电费查询
+	FeaturePayment       Feature = "payment"         // 校园卡查询
+	FeatureMap           Feature = "map"             // 校园地图
 )
 
 var validFeatures = map[Feature]bool{
@@ -26,6 +29,9 @@ var validFeatures = map[Feature]bool{
 	FeatureBusSchedule:   true,
 	FeatureProgram:       true,
 	FeatureStudyProgress: true,
+	FeatureElectricity:   true,
+	FeaturePayment:       true,
+	FeatureMap:           true,
 }
 
 func IsValidFeature(f Feature) bool {

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/viper"
@@ -35,9 +36,13 @@ func LoadConfig() error {
 	viper.SetEnvPrefix("LUMINOUS")
 	viper.AutomaticEnv()
 
+	viper.BindEnv("server.port")
+	viper.BindEnv("server.mode")
+	viper.BindEnv("auth.admin_token")
+	viper.BindEnv("data.schools_file")
+
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.mode", "debug")
-	viper.SetDefault("auth.admin_token", "")
 	viper.SetDefault("data.schools_file", "./data/schools.json")
 
 	if err := viper.ReadInConfig(); err != nil {
@@ -49,6 +54,10 @@ func LoadConfig() error {
 	Cfg = &AppConfig{}
 	if err := viper.Unmarshal(Cfg); err != nil {
 		return fmt.Errorf("unmarshal config: %w", err)
+	}
+
+	if Cfg.Auth.AdminToken == "" {
+		return errors.New("auth.admin_token must not be empty; set it in config.yaml or via LUMINOUS_AUTH_ADMIN_TOKEN env var")
 	}
 
 	return nil

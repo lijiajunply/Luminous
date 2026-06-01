@@ -1,9 +1,0 @@
-server:
-  port: 8080
-  mode: debug
-
-auth:
-  admin_token: "your-admin-secret-token"
-
-data:
-  schools_file: "./data/schools.json"

@@ -23,7 +23,6 @@ bin/
 Thumbs.db
 
 # Config (mounted at runtime)
-config.yaml
 .env
 .env.local
 

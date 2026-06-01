@@ -8,7 +8,7 @@
 |------|------|
 | 语言 | Go 1.26 |
 | Web 框架 | Gin |
-| 配置 | Viper (YAML + 环境变量) |
+| 配置 | 环境变量 / `.env` 文件 |
 | 日志 | `log/slog` |
 | 缓存 | 内存 TTL Cache (`sync.Map` + 过期时间) |
 
@@ -20,7 +20,7 @@ go run ./cmd/server/
 curl http://localhost:8080/api/v1/schools
 ```
 
-默认端口 `8080`，配置文件为 `config.yaml`。
+默认端口 `8080`，通过环境变量或 `.env` 文件配置。
 
 ## API 概览
 
@@ -103,31 +103,27 @@ Authorization: Bearer <admin_token>
 
 ## 配置
 
-`config.yaml` 示例：
+复制 `.env.example` 为 `.env` 并修改：
 
-```yaml
-server:
-  port: 8080
-  mode: debug
-
-auth:
-  admin_token: "luminous-admin-secret-token"
-
-data:
-  schools_file: "./data/schools.json"
+```bash
+cp .env.example .env
 ```
 
-支持环境变量覆盖，前缀 `LUMINOUS_`：
+```ini
+LUMINOUS_SERVER_PORT=8080
+LUMINOUS_SERVER_MODE=debug
+LUMINOUS_AUTH_ADMIN_TOKEN=your-admin-secret-token
+LUMINOUS_DATA_SCHOOLS_FILE=./data/schools.json
+```
 
-- `LUMINOUS_SERVER_PORT=9090`
-- `LUMINOUS_AUTH_ADMIN_TOKEN=xxx`
+环境变量优先级高于 `.env` 文件。`LUMINOUS_AUTH_ADMIN_TOKEN` **必须设置**，否则服务拒绝启动。
 
 ## 项目结构
 
 ```text
 Luminous/
 ├── cmd/server/main.go
-├── config.yaml
+├── .env.example
 ├── data/schools.json
 ├── internal/
 │   ├── config/config.go

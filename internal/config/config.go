@@ -1,68 +1,102 @@
 package config
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
-
-	"github.com/spf13/viper"
+	"os"
+	"strconv"
+	"strings"
 )
 
 type ServerConfig struct {
-	Port int    `mapstructure:"port"`
-	Mode string `mapstructure:"mode"`
+	Port int
+	Mode string
 }
 
 type AuthConfig struct {
-	AdminToken string `mapstructure:"admin_token"`
+	AdminToken string
 }
 
 type DataConfig struct {
-	SchoolsFile string `mapstructure:"schools_file"`
+	SchoolsFile string
 }
 
 type AppConfig struct {
-	Server ServerConfig `mapstructure:"server"`
-	Auth   AuthConfig   `mapstructure:"auth"`
-	Data   DataConfig   `mapstructure:"data"`
+	Server ServerConfig
+	Auth   AuthConfig
+	Data   DataConfig
 }
 
 var Cfg *AppConfig
 
-func LoadConfig() error {
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
+func loadEnvFile(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("open .env file: %w", err)
+	}
+	defer f.Close()
 
-	viper.SetEnvPrefix("LUMINOUS")
-	viper.AutomaticEnv()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		value = strings.Trim(value, `"'`)
+		if _, exists := os.LookupEnv(key); exists {
+			continue
+		}
+		os.Setenv(key, value)
+	}
+	return scanner.Err()
+}
 
-	viper.BindEnv("server.port")
-	viper.BindEnv("server.mode")
-	viper.BindEnv("auth.admin_token")
-	viper.BindEnv("data.schools_file")
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
 
-	viper.SetDefault("server.port", 8080)
-	viper.SetDefault("server.mode", "debug")
-	viper.SetDefault("data.schools_file", "./data/schools.json")
-
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return fmt.Errorf("read config file: %w", err)
+func getEnvInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
 		}
 	}
+	return fallback
+}
 
-	Cfg = &AppConfig{}
-	if err := viper.Unmarshal(Cfg); err != nil {
-		return fmt.Errorf("unmarshal config: %w", err)
+func LoadConfig() error {
+	if err := loadEnvFile(".env"); err != nil {
+		return fmt.Errorf("load .env file: %w", err)
 	}
 
-	Cfg.Server.Port = viper.GetInt("server.port")
-	Cfg.Server.Mode = viper.GetString("server.mode")
-	Cfg.Auth.AdminToken = viper.GetString("auth.admin_token")
-	Cfg.Data.SchoolsFile = viper.GetString("data.schools_file")
+	Cfg = &AppConfig{
+		Server: ServerConfig{
+			Port: getEnvInt("LUMINOUS_SERVER_PORT", 8080),
+			Mode: getEnv("LUMINOUS_SERVER_MODE", "debug"),
+		},
+		Auth: AuthConfig{
+			AdminToken: os.Getenv("LUMINOUS_AUTH_ADMIN_TOKEN"),
+		},
+		Data: DataConfig{
+			SchoolsFile: getEnv("LUMINOUS_DATA_SCHOOLS_FILE", "./data/schools.json"),
+		},
+	}
 
 	if Cfg.Auth.AdminToken == "" {
-		return errors.New("auth.admin_token must not be empty; set it in config.yaml or via LUMINOUS_AUTH_ADMIN_TOKEN env var")
+		return errors.New("LUMINOUS_AUTH_ADMIN_TOKEN is required; set it in your environment or .env file")
 	}
 
 	return nil

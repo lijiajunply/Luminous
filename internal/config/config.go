@@ -56,6 +56,11 @@ func LoadConfig() error {
 		return fmt.Errorf("unmarshal config: %w", err)
 	}
 
+	Cfg.Server.Port = viper.GetInt("server.port")
+	Cfg.Server.Mode = viper.GetString("server.mode")
+	Cfg.Auth.AdminToken = viper.GetString("auth.admin_token")
+	Cfg.Data.SchoolsFile = viper.GetString("data.schools_file")
+
 	if Cfg.Auth.AdminToken == "" {
 		return errors.New("auth.admin_token must not be empty; set it in config.yaml or via LUMINOUS_AUTH_ADMIN_TOKEN env var")
 	}

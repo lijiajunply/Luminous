@@ -7,9 +7,8 @@
 | 组件 | 选型 |
 |------|------|
 | 语言 | Go 1.26 |
-| Web 框架 | Gin v1.12 |
-| 配置 | Viper (YAML + 环境变量覆盖) |
-| 数据库 | PostgreSQL (pgx/v5 连接池) |
+| Web 框架 | Gin |
+| 配置 | 环境变量 / `.env` 文件 |
 | 日志 | `log/slog` |
 
 
@@ -259,7 +258,7 @@ curl http://localhost:8080/api/v1/admin/schools \
   -H "Authorization: Bearer my-dev-token"
 ```
 
-### 6. 运行测试
+默认端口 `8080`，通过环境变量或 `.env` 文件配置。
 
 ```bash
 # 单元测试（无需数据库）
@@ -406,88 +405,36 @@ Authorization: Bearer <admin_token>
 
 **分页参数：** `GET /api/v1/admin/schools?page=1&page_size=50`（page 默认 1，page_size 默认 50，最大 200）
 
-**新增学校：**
+复制 `.env.example` 为 `.env` 并修改：
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/admin/schools \
-  -H "Authorization: Bearer luminous-admin-secret-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "code": "XAUAT",
-    "name": "西安建筑科技大学",
-    "website": "https://xauatapi.xauat.site",
-    "features": ["login", "timetable", "grade_query", "exam_schedule"]
-  }'
+cp .env.example .env
 ```
 
-**部分更新：**
-
-```bash
-curl -X PUT http://localhost:8080/api/v1/admin/schools/XAUAT \
-  -H "Authorization: Bearer luminous-admin-secret-token" \
-  -H "Content-Type: application/json" \
-  -d '{"enabled": false}'
+```ini
+LUMINOUS_SERVER_PORT=8080
+LUMINOUS_SERVER_MODE=debug
+LUMINOUS_AUTH_ADMIN_TOKEN=your-admin-secret-token
+LUMINOUS_DATA_SCHOOLS_FILE=./data/schools.json
 ```
 
-### 功能枚举 (Features)
-
-| 值 | 说明 |
-|----|------|
-| `login` | SSO 登录（最基础服务，必须满足） |
-| `timetable` | 课表显示 |
-| `grade_query` | 成绩查询 |
-| `gpa_calculation` | GPA 计算 |
-| `exam_schedule` | 考试安排 |
-| `course_selection` | 选课 |
-| `bus_schedule` | 校车时刻表 |
-| `program` | 培养方案 |
-| `study_progress` | 学业进度 |
-| `semester_info` | 学期信息 |
+环境变量优先级高于 `.env` 文件。`LUMINOUS_AUTH_ADMIN_TOKEN` **必须设置**，否则服务拒绝启动。
 
 
-## 数据迁移
-
-将 `data/schools.json` 的种子数据导入 PostgreSQL：
-
-```bash
-go run ./cmd/migrate/
-# 输出: migrated=4 failed=0
-```
-
-重复运行安全（`ON CONFLICT DO NOTHING` 跳过已存在记录）。
-
-
-## Docker
-
-```bash
-docker build -t luminous .
-docker run -d \
-  -p 8080:8080 \
-  -e LUMINOUS_DATABASE_DSN="postgresql://..." \
-  -e LUMINOUS_AUTH_ADMIN_TOKEN="your-token" \
-  luminous
-```
-
-
-## 常用命令
-
-```bash
-# 开发运行
-go run ./cmd/server/
-
-# 编译
-make build          # → bin/luminous
-
-# 运行全部测试
-make test
-
-# 运行单元测试（跳过 PG 集成测试）
-go test -short ./...
-
-# 运行含 PG 集成测试（需本地数据库）
-go test -tags=integration ./internal/repository/
-
-# 检查和格式化代码
-go vet ./...
-go fmt ./...
+```text
+Luminous/
+├── cmd/server/main.go
+├── .env.example
+├── data/schools.json
+├── internal/
+│   ├── config/config.go
+│   ├── handler/
+│   ├── middleware/
+│   ├── model/
+│   ├── repository/
+│   ├── response/
+│   ├── router/
+│   └── util/
+├── go.mod
+└── README.md
 ```

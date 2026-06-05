@@ -1,83 +1,102 @@
 package config
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
-
-	"github.com/spf13/viper"
 )
 
 type ServerConfig struct {
-	Port          int    `mapstructure:"port"`
-	Mode          string `mapstructure:"mode"`
-	CORSOrigin    string `mapstructure:"cors_origin"`
-	TLSCert       string `mapstructure:"tls_cert"`
-	TLSKey        string `mapstructure:"tls_key"`
-	TrustedProxies string `mapstructure:"trusted_proxies"`
+	Port int
+	Mode string
 }
 
 type AuthConfig struct {
-	AdminToken string `mapstructure:"admin_token"`
+	AdminToken string
 }
 
-type ReleaseConfig struct {
-	APIURL    string `mapstructure:"api_url"`
-	AppUUID   string `mapstructure:"app_uuid"`
-	ChannelID string `mapstructure:"channel_id"`
-}
-
-type DatabaseConfig struct {
-	DSN          string `mapstructure:"dsn"`
-	PoolMaxConns int32  `mapstructure:"pool_max_conns"`
-	PoolMinConns int32  `mapstructure:"pool_min_conns"`
-}
-
-type RateLimitConfig struct {
-	Rate  int `mapstructure:"rate"`
-	Burst int `mapstructure:"burst"`
+type DataConfig struct {
+	SchoolsFile string
 }
 
 type AppConfig struct {
-	Server    ServerConfig    `mapstructure:"server"`
-	Auth      AuthConfig      `mapstructure:"auth"`
-	Database  DatabaseConfig  `mapstructure:"database"`
-	Release   ReleaseConfig   `mapstructure:"release"`
-	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
+	Server ServerConfig
+	Auth   AuthConfig
+	Data   DataConfig
 }
 
 var Cfg *AppConfig
 
-func LoadConfig() error {
-	viper.SetEnvPrefix("LUMINOUS")
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	viper.AutomaticEnv()
+func loadEnvFile(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("open .env file: %w", err)
+	}
+	defer f.Close()
 
-	viper.SetDefault("server.port", 8080)
-	viper.SetDefault("server.mode", "release")
-	viper.SetDefault("server.cors_origin", "")
-	viper.SetDefault("auth.admin_token", "")
-	viper.SetDefault("release.api_url", "")
-	viper.SetDefault("release.app_uuid", "5f278ffc-5a70-4805-a6bf-0543040981a8")
-	viper.SetDefault("release.channel_id", "9e1a198a-a0c2-4017-b492-f2d0e5bee437")
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		value = strings.Trim(value, `"'`)
+		if _, exists := os.LookupEnv(key); exists {
+			continue
+		}
+		os.Setenv(key, value)
+	}
+	return scanner.Err()
+}
 
-	viper.SetDefault("database.pool_max_conns", 20)
-	viper.SetDefault("database.pool_min_conns", 5)
-	viper.SetDefault("rate_limit.rate", 10)
-	viper.SetDefault("rate_limit.burst", 30)
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
 
-	// Optional YAML config file for local development.
-	// Set LUMINOUS_CONFIG_PATH to load a file, otherwise pure env vars.
-	if p := os.Getenv("LUMINOUS_CONFIG_PATH"); p != "" {
-		viper.SetConfigFile(p)
-		if err := viper.ReadInConfig(); err != nil {
-			return fmt.Errorf("read config file %s: %w", p, err)
+func getEnvInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
 		}
 	}
+	return fallback
+}
 
-	Cfg = &AppConfig{}
-	if err := viper.Unmarshal(Cfg); err != nil {
-		return fmt.Errorf("unmarshal config: %w", err)
+func LoadConfig() error {
+	if err := loadEnvFile(".env"); err != nil {
+		return fmt.Errorf("load .env file: %w", err)
+	}
+
+	Cfg = &AppConfig{
+		Server: ServerConfig{
+			Port: getEnvInt("LUMINOUS_SERVER_PORT", 8080),
+			Mode: getEnv("LUMINOUS_SERVER_MODE", "debug"),
+		},
+		Auth: AuthConfig{
+			AdminToken: os.Getenv("LUMINOUS_AUTH_ADMIN_TOKEN"),
+		},
+		Data: DataConfig{
+			SchoolsFile: getEnv("LUMINOUS_DATA_SCHOOLS_FILE", "./data/schools.json"),
+		},
+	}
+
+	if Cfg.Auth.AdminToken == "" {
+		return errors.New("LUMINOUS_AUTH_ADMIN_TOKEN is required; set it in your environment or .env file")
 	}
 
 	return nil

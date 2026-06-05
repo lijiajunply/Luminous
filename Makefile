@@ -7,7 +7,7 @@ build:
 	go build -o bin/luminous ./cmd/server/
 
 clean:
-	rm -rf bin/
+	-rm -rf bin/
 
 test:
 	go test ./...

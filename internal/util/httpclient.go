@@ -1,9 +1,13 @@
 package util
 
 import (
+	"context"
 	"crypto/rand"
+	"errors"
+	"fmt"
 	"io"
 	"math/big"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -46,20 +50,56 @@ func NewHTTPClient() *HTTPClient {
 	}
 }
 
+func isRetriable(err error) bool {
+	if err == nil {
+		return false
+	}
+	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		return true
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	return false
+}
+
+var errStatus = fmt.Errorf("upstream returned status")
+
 func (c *HTTPClient) Do(req *http.Request) (*http.Response, error) {
 	var resp *http.Response
 	var err error
 
 	for i := 0; i < MaxRetries; i++ {
+		if i > 0 && req.GetBody != nil {
+			body, err := req.GetBody()
+			if err != nil {
+				return nil, err
+			}
+			req.Body = body
+		}
 		resp, err = c.client.Do(req)
 		if err == nil {
+			if resp.StatusCode >= 500 {
+				io.Copy(io.Discard, resp.Body)
+				resp.Body.Close()
+				if i < MaxRetries-1 {
+					time.Sleep(time.Duration(1<<uint(i)) * time.Second)
+				}
+				continue
+			}
 			return resp, nil
+		}
+		if !isRetriable(err) {
+			return nil, err
 		}
 		if i < MaxRetries-1 {
 			time.Sleep(time.Duration(1<<uint(i)) * time.Second)
 		}
 	}
-	return resp, err
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("%w: %d after %d retries", errStatus, resp.StatusCode, MaxRetries)
 }
 
 func (c *HTTPClient) Get(url string) (*http.Response, error) {
@@ -111,9 +151,13 @@ func (c *HTTPClient) GetWithHeaders(url string, headers map[string]string) (*htt
 }
 
 func (c *HTTPClient) PostForm(url string, data url.Values, headers map[string]string) (*http.Response, error) {
-	req, err := http.NewRequest("POST", url, strings.NewReader(data.Encode()))
+	body := data.Encode()
+	req, err := http.NewRequest("POST", url, strings.NewReader(body))
 	if err != nil {
 		return nil, err
+	}
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(strings.NewReader(body)), nil
 	}
 	req.Header.Set("User-Agent", RandomUserAgent())
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

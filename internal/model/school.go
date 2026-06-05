@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"net/url"
+	"regexp"
+	"time"
+)
 
 type Feature string
 
@@ -34,8 +38,19 @@ var validFeatures = map[Feature]bool{
 	FeatureMap:           true,
 }
 
+var schoolCodeRe = regexp.MustCompile(`^[A-Z0-9_-]{1,20}$`)
+
 func IsValidFeature(f Feature) bool {
 	return validFeatures[f]
+}
+
+func IsValidSchoolCode(code string) bool {
+	return schoolCodeRe.MatchString(code)
+}
+
+func IsValidURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 type School struct {

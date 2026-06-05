@@ -1,32 +1,63 @@
+//go:build integration
+
 package repository
 
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
+	"luminous/internal/config"
 	"luminous/internal/model"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var testCtx = context.Background()
-
-func tempFile(t *testing.T) string {
+func setupPGTest(t *testing.T) *PGSchoolRepository {
 	t.Helper()
-	f, err := os.CreateTemp("", "schools-*.json")
-	if err != nil {
-		t.Fatal(err)
+
+	if err := config.LoadConfig(); err != nil {
+		t.Skipf("skipping PG integration test (config load failed): %v", err)
+		return nil
 	}
-	f.Close()
-	t.Cleanup(func() { os.Remove(f.Name()) })
-	return f.Name()
+	dsn := config.Cfg.Database.DSN
+	if dsn == "" {
+		t.Skipf("skipping PG integration test (no database DSN configured)")
+		return nil
+	}
+
+	ctx := context.Background()
+
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Skipf("skipping PG integration test (no database): %v", err)
+		return nil
+	}
+
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		t.Skipf("skipping PG integration test (ping failed): %v", err)
+		return nil
+	}
+
+	pool.Exec(ctx, "DROP TABLE IF EXISTS schools CASCADE")
+
+	repo := &PGSchoolRepository{pool: pool}
+	if err := repo.autoMigrate(ctx); err != nil {
+		pool.Close()
+		t.Fatalf("migrate: %v", err)
+	}
+
+	t.Cleanup(func() {
+		pool.Exec(ctx, "DROP TABLE IF EXISTS schools CASCADE")
+		pool.Close()
+	})
+
+	return repo
 }
 
-func TestCreateAndFindAll(t *testing.T) {
-	repo, err := NewJSONSchoolRepository(tempFile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestPGCreateAndFindAll(t *testing.T) {
+	repo := setupPGTest(t)
 
 	school := &model.School{
 		Code:     "TEST",
@@ -35,7 +66,6 @@ func TestCreateAndFindAll(t *testing.T) {
 		Features: []model.Feature{model.FeatureTimetable},
 		Enabled:  true,
 	}
-
 	if err := repo.Create(testCtx, school); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -50,22 +80,18 @@ func TestCreateAndFindAll(t *testing.T) {
 	if all[0].Code != "TEST" {
 		t.Fatalf("expected TEST, got %s", all[0].Code)
 	}
+	if len(all[0].Features) != 1 || all[0].Features[0] != model.FeatureTimetable {
+		t.Fatalf("expected timetable feature, got %v", all[0].Features)
+	}
 }
 
-func TestFindByCode(t *testing.T) {
-	repo, err := NewJSONSchoolRepository(tempFile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestPGFindByCode(t *testing.T) {
+	repo := setupPGTest(t)
 
-	school := &model.School{
-		Code:     "FIND",
-		Name:     "Find Me",
-		Website:  "https://find.edu",
-		Features: []model.Feature{},
-		Enabled:  true,
-	}
-	repo.Create(testCtx, school)
+	repo.Create(testCtx, &model.School{
+		Code: "FIND", Name: "Find Me", Website: "https://find.edu",
+		Features: []model.Feature{}, Enabled: true,
+	})
 
 	found, err := repo.FindByCode(testCtx, "FIND")
 	if err != nil {
@@ -84,11 +110,8 @@ func TestFindByCode(t *testing.T) {
 	}
 }
 
-func TestFindEnabled(t *testing.T) {
-	repo, err := NewJSONSchoolRepository(tempFile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestPGFindEnabled(t *testing.T) {
+	repo := setupPGTest(t)
 
 	repo.Create(testCtx, &model.School{Code: "ON", Name: "On", Website: "https://a.edu", Features: nil, Enabled: true})
 	repo.Create(testCtx, &model.School{Code: "OFF", Name: "Off", Website: "https://b.edu", Features: nil, Enabled: false})
@@ -105,11 +128,8 @@ func TestFindEnabled(t *testing.T) {
 	}
 }
 
-func TestUpdate(t *testing.T) {
-	repo, err := NewJSONSchoolRepository(tempFile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestPGUpdate(t *testing.T) {
+	repo := setupPGTest(t)
 
 	repo.Create(testCtx, &model.School{Code: "UPD", Name: "Old", Website: "https://old.edu", Features: nil, Enabled: true})
 
@@ -127,11 +147,8 @@ func TestUpdate(t *testing.T) {
 	}
 }
 
-func TestDelete(t *testing.T) {
-	repo, err := NewJSONSchoolRepository(tempFile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestPGDelete(t *testing.T) {
+	repo := setupPGTest(t)
 
 	repo.Create(testCtx, &model.School{Code: "DEL", Name: "Delete Me", Website: "https://del.edu", Features: nil, Enabled: true})
 
@@ -139,51 +156,27 @@ func TestDelete(t *testing.T) {
 		t.Fatalf("Delete: %v", err)
 	}
 
-	_, err = repo.FindByCode(testCtx, "DEL")
+	_, err := repo.FindByCode(testCtx, "DEL")
 	if err == nil {
 		t.Fatal("expected error after delete")
 	}
 }
 
-func TestCreateDuplicate(t *testing.T) {
-	repo, err := NewJSONSchoolRepository(tempFile(t))
-	if err != nil {
+func TestPGCreateDuplicate(t *testing.T) {
+	repo := setupPGTest(t)
+
+	school := &model.School{Code: "DUP", Name: "Dup", Website: "https://dup.edu", Features: nil, Enabled: true}
+	if err := repo.Create(testCtx, school); err != nil {
 		t.Fatal(err)
 	}
 
-	school := &model.School{Code: "DUP", Name: "Dup", Website: "https://dup.edu", Features: nil, Enabled: true}
-	repo.Create(testCtx, school)
-
-	err = repo.Create(testCtx, school)
-	if err == nil {
+	if err := repo.Create(testCtx, school); err == nil {
 		t.Fatal("expected error for duplicate code")
 	}
 }
 
-func TestPersistenceAcrossInstances(t *testing.T) {
-	path := tempFile(t)
-
-	repo1, _ := NewJSONSchoolRepository(path)
-	repo1.Create(testCtx, &model.School{Code: "PERSIST", Name: "Persist", Website: "https://p.edu", Features: nil, Enabled: true})
-
-	repo2, err := NewJSONSchoolRepository(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	found, err := repo2.FindByCode(testCtx, "PERSIST")
-	if err != nil {
-		t.Fatalf("school not persisted to disk: %v", err)
-	}
-	if found.Name != "Persist" {
-		t.Fatalf("unexpected name: %s", found.Name)
-	}
-}
-
-func TestCount(t *testing.T) {
-	repo, err := NewJSONSchoolRepository(tempFile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestPGCount(t *testing.T) {
+	repo := setupPGTest(t)
 
 	n, err := repo.Count(testCtx)
 	if err != nil {
@@ -205,21 +198,31 @@ func TestCount(t *testing.T) {
 	}
 }
 
-func TestFindAllPagination(t *testing.T) {
-	repo, err := NewJSONSchoolRepository(tempFile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestPGFindAllPagination(t *testing.T) {
+	repo := setupPGTest(t)
 
 	for _, code := range []string{"A", "B", "C", "D", "E"} {
 		repo.Create(testCtx, &model.School{Code: code, Name: code, Website: "https://" + code + ".edu", Features: nil, Enabled: true})
 	}
 
-	all, err := repo.FindAll(testCtx, 0, 0)
+	// Page 1: first 2 items
+	page1, err := repo.FindAll(testCtx, 0, 2)
 	if err != nil {
-		t.Fatalf("FindAll(0,0): %v", err)
+		t.Fatalf("FindAll(0,2): %v", err)
 	}
-	if len(all) != 5 {
-		t.Fatalf("expected 5, got %d", len(all))
+	if len(page1) != 2 {
+		t.Fatalf("expected 2, got %d", len(page1))
+	}
+
+	// Page 2: next 2 items
+	page2, err := repo.FindAll(testCtx, 2, 2)
+	if err != nil {
+		t.Fatalf("FindAll(2,2): %v", err)
+	}
+	if len(page2) != 2 {
+		t.Fatalf("expected 2, got %d", len(page2))
+	}
+	if page2[0].Code == page1[0].Code || page2[0].Code == page1[1].Code {
+		t.Fatal("page2 should not overlap with page1")
 	}
 }

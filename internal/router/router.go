@@ -55,6 +55,7 @@ func SetupRouter(
 		v1.GET("/schools", schoolHandler.ListSchools)
 		v1.GET("/schools/:code", schoolHandler.GetSchool)
 		v1.GET("/app", appHandler.GetTagModel)
+		v1.GET("/App", appHandler.GetTagModel)
 	}
 
 	admin := r.Group("/api/v1/admin")

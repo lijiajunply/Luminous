@@ -359,8 +359,8 @@ curl -X PUT http://localhost:8080/api/v1/admin/schools/XAUAT \
 
 | 值 | 说明 |
 |----|------|
-| `login` | SSO 登录 |
-| `timetable` | 课表显示 |
+| `login` | 登录 |
+| `timetable` | 日历功能 |
 | `grade_query` | 成绩查询 |
 | `gpa_calculation` | GPA 计算 |
 | `exam_schedule` | 考试安排 |

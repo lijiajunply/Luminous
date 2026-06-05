@@ -10,22 +10,41 @@ import (
 )
 
 type ServerConfig struct {
-	Port int
-	Mode string
+	Port          int
+	Mode          string
+	CORSOrigin    string
+	TLSCert       string
+	TLSKey        string
+	TrustedProxies string
 }
 
 type AuthConfig struct {
 	AdminToken string
 }
 
-type DataConfig struct {
-	SchoolsFile string
+type DatabaseConfig struct {
+	DSN          string
+	PoolMaxConns int32
+	PoolMinConns int32
+}
+
+type ReleaseConfig struct {
+	APIURL    string
+	AppUUID   string
+	ChannelID string
+}
+
+type RateLimitConfig struct {
+	Rate  int
+	Burst int
 }
 
 type AppConfig struct {
-	Server ServerConfig
-	Auth   AuthConfig
-	Data   DataConfig
+	Server    ServerConfig
+	Auth      AuthConfig
+	Database  DatabaseConfig
+	Release   ReleaseConfig
+	RateLimit RateLimitConfig
 }
 
 var Cfg *AppConfig
@@ -84,19 +103,34 @@ func LoadConfig() error {
 
 	Cfg = &AppConfig{
 		Server: ServerConfig{
-			Port: getEnvInt("LUMINOUS_SERVER_PORT", 8080),
-			Mode: getEnv("LUMINOUS_SERVER_MODE", "debug"),
+			Port:          getEnvInt("LUMINOUS_SERVER_PORT", 8080),
+			Mode:          getEnv("LUMINOUS_SERVER_MODE", "release"),
+			CORSOrigin:    getEnv("LUMINOUS_SERVER_CORS_ORIGIN", ""),
+			TLSCert:       getEnv("LUMINOUS_SERVER_TLS_CERT", ""),
+			TLSKey:        getEnv("LUMINOUS_SERVER_TLS_KEY", ""),
+			TrustedProxies: getEnv("LUMINOUS_SERVER_TRUSTED_PROXIES", ""),
 		},
 		Auth: AuthConfig{
-			AdminToken: os.Getenv("LUMINOUS_AUTH_ADMIN_TOKEN"),
+			AdminToken: getEnv("LUMINOUS_AUTH_ADMIN_TOKEN", ""),
 		},
-		Data: DataConfig{
-			SchoolsFile: getEnv("LUMINOUS_DATA_SCHOOLS_FILE", "./data/schools.json"),
+		Database: DatabaseConfig{
+			DSN:          getEnv("LUMINOUS_DATABASE_DSN", ""),
+			PoolMaxConns: int32(getEnvInt("LUMINOUS_DATABASE_POOL_MAX_CONNS", 20)),
+			PoolMinConns: int32(getEnvInt("LUMINOUS_DATABASE_POOL_MIN_CONNS", 5)),
+		},
+		Release: ReleaseConfig{
+			APIURL:    getEnv("LUMINOUS_RELEASE_API_URL", ""),
+			AppUUID:   getEnv("LUMINOUS_RELEASE_APP_UUID", "5f278ffc-5a70-4805-a6bf-0543040981a8"),
+			ChannelID: getEnv("LUMINOUS_RELEASE_CHANNEL_ID", "9e1a198a-a0c2-4017-b492-f2d0e5bee437"),
+		},
+		RateLimit: RateLimitConfig{
+			Rate:  getEnvInt("LUMINOUS_RATE_LIMIT_RATE", 10),
+			Burst: getEnvInt("LUMINOUS_RATE_LIMIT_BURST", 30),
 		},
 	}
 
 	if Cfg.Auth.AdminToken == "" {
-		return errors.New("LUMINOUS_AUTH_ADMIN_TOKEN is required; set it in your environment or .env file")
+		return errors.New("LUMINOUS_AUTH_ADMIN_TOKEN is required")
 	}
 
 	return nil

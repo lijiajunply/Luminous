@@ -13,6 +13,12 @@ import (
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if config.Cfg.Auth.AdminToken == "" {
+			response.Error(c, http.StatusServiceUnavailable, "admin token not configured")
+			c.Abort()
+			return
+		}
+
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			response.Error(c, http.StatusUnauthorized, "missing authorization header")
@@ -22,7 +28,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			response.Error(c, http.StatusUnauthorized, "invalid authorization format, expected: Bearer <token>")
+			response.Error(c, http.StatusUnauthorized, "invalid authorization format")
 			c.Abort()
 			return
 		}

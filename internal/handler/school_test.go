@@ -37,7 +37,9 @@ func TestListSchoolsEmpty(t *testing.T) {
 	}
 
 	var resp response.Response
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
 	listData := resp.Data.(map[string]interface{})
 	if int(listData["total"].(float64)) != 0 {
 		t.Fatalf("expected 0 schools, got %v", listData["total"])

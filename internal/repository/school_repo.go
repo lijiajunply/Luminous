@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,12 +12,12 @@ import (
 )
 
 type SchoolRepository interface {
-	FindAll() ([]*model.School, error)
-	FindEnabled() ([]*model.School, error)
-	FindByCode(code string) (*model.School, error)
-	Create(school *model.School) error
-	Update(school *model.School) error
-	Delete(code string) error
+	FindAll(ctx context.Context) ([]*model.School, error)
+	FindEnabled(ctx context.Context) ([]*model.School, error)
+	FindByCode(ctx context.Context, code string) (*model.School, error)
+	Create(ctx context.Context, school *model.School) error
+	Update(ctx context.Context, school *model.School) error
+	Delete(ctx context.Context, code string) error
 }
 
 type JSONSchoolRepository struct {
@@ -64,7 +65,7 @@ func (r *JSONSchoolRepository) save() error {
 	return nil
 }
 
-func (r *JSONSchoolRepository) FindAll() ([]*model.School, error) {
+func (r *JSONSchoolRepository) FindAll(_ context.Context) ([]*model.School, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -75,7 +76,7 @@ func (r *JSONSchoolRepository) FindAll() ([]*model.School, error) {
 	return result, nil
 }
 
-func (r *JSONSchoolRepository) FindEnabled() ([]*model.School, error) {
+func (r *JSONSchoolRepository) FindEnabled(_ context.Context) ([]*model.School, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -88,7 +89,7 @@ func (r *JSONSchoolRepository) FindEnabled() ([]*model.School, error) {
 	return result, nil
 }
 
-func (r *JSONSchoolRepository) FindByCode(code string) (*model.School, error) {
+func (r *JSONSchoolRepository) FindByCode(_ context.Context, code string) (*model.School, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -99,7 +100,7 @@ func (r *JSONSchoolRepository) FindByCode(code string) (*model.School, error) {
 	return s, nil
 }
 
-func (r *JSONSchoolRepository) Create(school *model.School) error {
+func (r *JSONSchoolRepository) Create(_ context.Context, school *model.School) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -117,7 +118,7 @@ func (r *JSONSchoolRepository) Create(school *model.School) error {
 	return r.save()
 }
 
-func (r *JSONSchoolRepository) Update(school *model.School) error {
+func (r *JSONSchoolRepository) Update(_ context.Context, school *model.School) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -132,7 +133,7 @@ func (r *JSONSchoolRepository) Update(school *model.School) error {
 	return r.save()
 }
 
-func (r *JSONSchoolRepository) Delete(code string) error {
+func (r *JSONSchoolRepository) Delete(_ context.Context, code string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

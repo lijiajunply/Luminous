@@ -1,9 +1,29 @@
 server:
   port: 8080
   mode: debug
+  cors_origin: "*"
 
 auth:
   admin_token: "your-admin-secret-token"
 
-data:
-  schools_file: "./data/schools.json"
+release:
+  api_url: ""
+  app_uuid: ""
+  channel_id: ""
+
+# Option 1: use DSN connection string (takes priority)
+# database:
+#   dsn: "postgresql://user:password@host:port/dbname"
+#   pool_max_conns: 20
+#   pool_min_conns: 5
+
+# Option 2: configure fields individually
+database:
+  host: "localhost"
+  port: 5432
+  user: "luminous"
+  password: "luminous"
+  dbname: "luminous"
+  sslmode: "disable"
+  pool_max_conns: 20
+  pool_min_conns: 5

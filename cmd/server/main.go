@@ -28,14 +28,17 @@ func main() {
 
 	gin.SetMode(config.Cfg.Server.Mode)
 
-	repo, err := repository.NewJSONSchoolRepository(config.Cfg.Data.SchoolsFile)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	pgRepo, err := repository.NewPGSchoolRepository(ctx, config.Cfg.Database)
 	if err != nil {
-		slog.Error("Failed to initialize repository", "error", err)
+		slog.Error("Failed to initialize PostgreSQL repository", "error", err)
 		os.Exit(1)
 	}
+	defer pgRepo.Close()
 
-	schoolHandler := handler.NewSchoolHandler(repo)
-	adminHandler := handler.NewAdminHandler(repo)
+	schoolHandler := handler.NewSchoolHandler(pgRepo)
+	adminHandler := handler.NewAdminHandler(pgRepo)
 	appHandler := handler.NewAppHandler()
 
 	r := router.SetupRouter(schoolHandler, adminHandler, appHandler)
@@ -60,7 +63,7 @@ func main() {
 	<-quit
 	slog.Info("Shutting down server...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"luminous/internal/model"
 	"luminous/internal/repository"
@@ -22,15 +23,18 @@ func NewAdminHandler(repo repository.SchoolRepository) *AdminHandler {
 }
 
 func (h *AdminHandler) AdminListSchools(c *gin.Context) {
+	rid := c.GetString("request_id")
 	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
 	if err != nil {
-		slog.Warn("invalid page parameter, using default", "raw", c.Query("page"))
-		page = 1
+		slog.Warn("invalid page parameter", "request_id", rid, "raw", c.Query("page"))
+		response.Error(c, http.StatusBadRequest, "invalid page parameter")
+		return
 	}
 	pageSize, err := strconv.Atoi(c.DefaultQuery("page_size", "50"))
 	if err != nil {
-		slog.Warn("invalid page_size parameter, using default", "raw", c.Query("page_size"))
-		pageSize = 50
+		slog.Warn("invalid page_size parameter", "request_id", rid, "raw", c.Query("page_size"))
+		response.Error(c, http.StatusBadRequest, "invalid page_size parameter")
+		return
 	}
 	if page < 1 {
 		page = 1
@@ -41,14 +45,14 @@ func (h *AdminHandler) AdminListSchools(c *gin.Context) {
 
 	schools, err := h.repo.FindAll(c.Request.Context(), (page-1)*pageSize, pageSize)
 	if err != nil {
-		slog.Error("failed to list schools", "error", err)
+		slog.Error("failed to list schools", "request_id", rid, "error", err)
 		response.Error(c, http.StatusInternalServerError, "failed to list schools")
 		return
 	}
 
 	total, err := h.repo.Count(c.Request.Context())
 	if err != nil {
-		slog.Error("failed to count schools", "error", err)
+		slog.Error("failed to count schools", "request_id", rid, "error", err)
 		response.Error(c, http.StatusInternalServerError, "failed to count schools")
 		return
 	}
@@ -57,7 +61,8 @@ func (h *AdminHandler) AdminListSchools(c *gin.Context) {
 }
 
 func (h *AdminHandler) CreateSchool(c *gin.Context) {
-	if ct := c.ContentType(); ct != "application/json" {
+	rid := c.GetString("request_id")
+	if ct := c.ContentType(); !strings.HasPrefix(ct, "application/json") {
 		response.Error(c, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		return
 	}
@@ -78,7 +83,8 @@ func (h *AdminHandler) CreateSchool(c *gin.Context) {
 
 	for _, f := range req.Features {
 		if !model.IsValidFeature(f) {
-			response.Error(c, http.StatusBadRequest, "invalid feature: "+string(f))
+			slog.Warn("invalid feature in create request", "request_id", rid, "feature", string(f))
+			response.Error(c, http.StatusBadRequest, "invalid feature")
 			return
 		}
 	}
@@ -96,7 +102,7 @@ func (h *AdminHandler) CreateSchool(c *gin.Context) {
 			response.Error(c, http.StatusConflict, "school already exists")
 			return
 		}
-		slog.Error("failed to create school", "error", err)
+		slog.Error("failed to create school", "request_id", rid, "error", err)
 		response.Error(c, http.StatusInternalServerError, "failed to create school")
 		return
 	}
@@ -104,9 +110,20 @@ func (h *AdminHandler) CreateSchool(c *gin.Context) {
 }
 
 func (h *AdminHandler) UpdateSchool(c *gin.Context) {
+	rid := c.GetString("request_id")
 	code := c.Param("code")
 	if !model.IsValidSchoolCode(code) {
 		response.Error(c, http.StatusBadRequest, "invalid school code")
+		return
+	}
+
+	if ct := c.ContentType(); !strings.HasPrefix(ct, "application/json") {
+		response.Error(c, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
+		return
+	}
+	var req model.UpdateSchoolRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
@@ -115,19 +132,9 @@ func (h *AdminHandler) UpdateSchool(c *gin.Context) {
 		if errors.Is(err, repository.ErrNotFound) {
 			response.Error(c, http.StatusNotFound, "school not found")
 		} else {
-			slog.Error("failed to get school for update", "code", code, "error", err)
+			slog.Error("failed to get school for update", "request_id", rid, "code", code, "error", err)
 			response.Error(c, http.StatusInternalServerError, "failed to get school")
 		}
-		return
-	}
-
-	if ct := c.ContentType(); ct != "application/json" {
-		response.Error(c, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
-		return
-	}
-	var req model.UpdateSchoolRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
@@ -144,7 +151,8 @@ func (h *AdminHandler) UpdateSchool(c *gin.Context) {
 	if req.Features != nil {
 		for _, f := range *req.Features {
 			if !model.IsValidFeature(f) {
-				response.Error(c, http.StatusBadRequest, "invalid feature: "+string(f))
+				slog.Warn("invalid feature in update request", "request_id", rid, "feature", string(f))
+				response.Error(c, http.StatusBadRequest, "invalid feature")
 				return
 			}
 		}
@@ -155,7 +163,7 @@ func (h *AdminHandler) UpdateSchool(c *gin.Context) {
 	}
 
 	if err := h.repo.Update(c.Request.Context(), existing); err != nil {
-		slog.Error("failed to update school", "code", code, "error", err)
+		slog.Error("failed to update school", "request_id", rid, "code", code, "error", err)
 		response.Error(c, http.StatusInternalServerError, "failed to update school")
 		return
 	}
@@ -163,14 +171,19 @@ func (h *AdminHandler) UpdateSchool(c *gin.Context) {
 }
 
 func (h *AdminHandler) DeleteSchool(c *gin.Context) {
+	rid := c.GetString("request_id")
 	code := c.Param("code")
 	if !model.IsValidSchoolCode(code) {
 		response.Error(c, http.StatusBadRequest, "invalid school code")
 		return
 	}
 	if err := h.repo.Delete(c.Request.Context(), code); err != nil {
-		slog.Error("failed to delete school", "code", code, "error", err)
-		response.Error(c, http.StatusInternalServerError, "failed to delete school")
+		if errors.Is(err, repository.ErrNotFound) {
+			response.Error(c, http.StatusNotFound, "school not found")
+		} else {
+			slog.Error("failed to delete school", "request_id", rid, "code", code, "error", err)
+			response.Error(c, http.StatusInternalServerError, "failed to delete school")
+		}
 		return
 	}
 	response.Success(c, http.StatusOK, "school deleted", nil)

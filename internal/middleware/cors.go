@@ -3,15 +3,12 @@ package middleware
 import (
 	"net/http"
 
-	"luminous/internal/config"
-
 	"github.com/gin-gonic/gin"
 )
 
-func CORSMiddleware() gin.HandlerFunc {
-	origin := "*"
-	if config.Cfg != nil && config.Cfg.Server.CORSOrigin != "" {
-		origin = config.Cfg.Server.CORSOrigin
+func CORSMiddleware(origin string) gin.HandlerFunc {
+	if origin == "" {
+		origin = "*"
 	}
 
 	return func(c *gin.Context) {

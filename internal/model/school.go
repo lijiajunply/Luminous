@@ -1,6 +1,7 @@
 package model
 
 import (
+	"net"
 	"net/url"
 	"regexp"
 	"time"
@@ -50,7 +51,55 @@ func IsValidSchoolCode(code string) bool {
 
 func IsValidURL(raw string) bool {
 	u, err := url.Parse(raw)
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return false
+	}
+	if u.User != nil {
+		return false
+	}
+	host, _, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		host = u.Host
+	}
+	if isPrivateIP(host) {
+		return false
+	}
+	return true
+}
+
+var reservedCIDRs = []string{
+	"10.0.0.0/8",
+	"172.16.0.0/12",
+	"192.168.0.0/16",
+	"127.0.0.0/8",
+	"169.254.0.0/16",
+	"::1/128",
+	"fe80::/10",
+}
+
+var reservedNets []*net.IPNet
+
+func init() {
+	for _, cidr := range reservedCIDRs {
+		_, block, err := net.ParseCIDR(cidr)
+		if err != nil {
+			panic("invalid built-in CIDR: " + cidr)
+		}
+		reservedNets = append(reservedNets, block)
+	}
+}
+
+func isPrivateIP(host string) bool {
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	for _, block := range reservedNets {
+		if block.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 type School struct {

@@ -13,7 +13,8 @@ import (
 )
 
 func main() {
-	if err := config.LoadConfig(); err != nil {
+	cfg, err := config.LoadConfig()
+	if err != nil {
 		slog.Error("Failed to load config", "error", err)
 		os.Exit(1)
 	}
@@ -38,7 +39,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	pgRepo, err := repository.NewPGSchoolRepository(ctx, config.Cfg.Database)
+	pgRepo, err := repository.NewPGSchoolRepository(ctx, cfg.Database)
 	if err != nil {
 		slog.Error("Failed to connect to PostgreSQL", "error", err)
 		os.Exit(1)

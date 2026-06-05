@@ -48,19 +48,18 @@ type AppConfig struct {
 	RateLimit RateLimitConfig
 }
 
-var Cfg *AppConfig
-
 var bom = []byte{0xEF, 0xBB, 0xBF}
 
-func loadEnvFile(path string) error {
+func loadEnvFile(path string) (map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil
+			return nil, nil
 		}
-		return fmt.Errorf("open .env file: %w", err)
+		return nil, fmt.Errorf("open .env file: %w", err)
 	}
 
+	result := make(map[string]string)
 	data = bytes.TrimPrefix(data, bom)
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
@@ -75,22 +74,28 @@ func loadEnvFile(path string) error {
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 		value = strings.Trim(value, `"'`)
-		if _, exists := os.LookupEnv(key); exists {
-			continue
-		}
-		os.Setenv(key, value)
+		result[key] = value
 	}
-	return scanner.Err()
+	return result, scanner.Err()
 }
 
-func getEnv(key, fallback string) string {
+func getEnv(fileVals map[string]string, key, fallback string) string {
+	if v, ok := fileVals[key]; ok && v != "" {
+		return v
+	}
 	if v := os.Getenv(key); v != "" {
 		return v
 	}
 	return fallback
 }
 
-func getEnvInt(key string, fallback int) int {
+func getEnvInt(fileVals map[string]string, key string, fallback int) int {
+	if v, ok := fileVals[key]; ok && v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+		fmt.Fprintf(os.Stderr, "WARNING: invalid integer for %s=%q, using default %d\n", key, v, fallback)
+	}
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			return n
@@ -100,48 +105,52 @@ func getEnvInt(key string, fallback int) int {
 	return fallback
 }
 
-func LoadConfig() error {
-	if err := loadEnvFile(".env"); err != nil {
-		return fmt.Errorf("load .env file: %w", err)
+func LoadConfig() (*AppConfig, error) {
+	fileVals, err := loadEnvFile(".env")
+	if err != nil {
+		return nil, fmt.Errorf("load .env file: %w", err)
+	}
+	if fileVals == nil {
+		fileVals = make(map[string]string)
 	}
 
-	Cfg = &AppConfig{
+	cfg := &AppConfig{
 		Server: ServerConfig{
-			Port:           getEnvInt("LUMINOUS_SERVER_PORT", 8080),
-			Mode:           getEnv("LUMINOUS_SERVER_MODE", "release"),
-			CORSOrigin:     getEnv("LUMINOUS_SERVER_CORS_ORIGIN", ""),
-			TLSCert:        getEnv("LUMINOUS_SERVER_TLS_CERT", ""),
-			TLSKey:         getEnv("LUMINOUS_SERVER_TLS_KEY", ""),
-			TrustedProxies: getEnv("LUMINOUS_SERVER_TRUSTED_PROXIES", ""),
+			Port:           getEnvInt(fileVals, "LUMINOUS_SERVER_PORT", 8080),
+			Mode:           getEnv(fileVals, "LUMINOUS_SERVER_MODE", "release"),
+			CORSOrigin:     getEnv(fileVals, "LUMINOUS_SERVER_CORS_ORIGIN", ""),
+			TLSCert:        getEnv(fileVals, "LUMINOUS_SERVER_TLS_CERT", ""),
+			TLSKey:         getEnv(fileVals, "LUMINOUS_SERVER_TLS_KEY", ""),
+			TrustedProxies: getEnv(fileVals, "LUMINOUS_SERVER_TRUSTED_PROXIES", ""),
 		},
 		Auth: AuthConfig{
-			AdminToken: getEnv("LUMINOUS_AUTH_ADMIN_TOKEN", ""),
+			AdminToken: getEnv(fileVals, "LUMINOUS_AUTH_ADMIN_TOKEN", ""),
 		},
 		Database: DatabaseConfig{
-			DSN:          getEnv("LUMINOUS_DATABASE_DSN", ""),
-			PoolMaxConns: int32(getEnvInt("LUMINOUS_DATABASE_POOL_MAX_CONNS", 20)),
-			PoolMinConns: int32(getEnvInt("LUMINOUS_DATABASE_POOL_MIN_CONNS", 5)),
+			DSN:          getEnv(fileVals, "LUMINOUS_DATABASE_DSN", ""),
+			PoolMaxConns: int32(getEnvInt(fileVals, "LUMINOUS_DATABASE_POOL_MAX_CONNS", 20)),
+			PoolMinConns: int32(getEnvInt(fileVals, "LUMINOUS_DATABASE_POOL_MIN_CONNS", 5)),
 		},
 		Release: ReleaseConfig{
-			APIURL:    getEnv("LUMINOUS_RELEASE_API_URL", ""),
-			AppUUID:   getEnv("LUMINOUS_RELEASE_APP_UUID", "5f278ffc-5a70-4805-a6bf-0543040981a8"),
-			ChannelID: getEnv("LUMINOUS_RELEASE_CHANNEL_ID", "9e1a198a-a0c2-4017-b492-f2d0e5bee437"),
+			APIURL:    getEnv(fileVals, "LUMINOUS_RELEASE_API_URL", ""),
+			AppUUID:   getEnv(fileVals, "LUMINOUS_RELEASE_APP_UUID", "5f278ffc-5a70-4805-a6bf-0543040981a8"),
+			ChannelID: getEnv(fileVals, "LUMINOUS_RELEASE_CHANNEL_ID", "9e1a198a-a0c2-4017-b492-f2d0e5bee437"),
 		},
 		RateLimit: RateLimitConfig{
-			Rate:  getEnvInt("LUMINOUS_RATE_LIMIT_RATE", 10),
-			Burst: getEnvInt("LUMINOUS_RATE_LIMIT_BURST", 30),
+			Rate:  getEnvInt(fileVals, "LUMINOUS_RATE_LIMIT_RATE", 10),
+			Burst: getEnvInt(fileVals, "LUMINOUS_RATE_LIMIT_BURST", 30),
 		},
 	}
 
-	switch Cfg.Server.Mode {
+	switch cfg.Server.Mode {
 	case "debug", "release", "test":
 	default:
-		return fmt.Errorf("invalid server mode: %q (must be debug, release, or test)", Cfg.Server.Mode)
+		return nil, fmt.Errorf("invalid server mode: %q (must be debug, release, or test)", cfg.Server.Mode)
 	}
 
-	if Cfg.Auth.AdminToken == "" {
-		return errors.New("LUMINOUS_AUTH_ADMIN_TOKEN is required")
+	if cfg.Auth.AdminToken == "" {
+		return nil, errors.New("LUMINOUS_AUTH_ADMIN_TOKEN is required")
 	}
 
-	return nil
+	return cfg, nil
 }

@@ -16,11 +16,12 @@ import (
 func setupPGTest(t *testing.T) *PGSchoolRepository {
 	t.Helper()
 
-	if err := config.LoadConfig(); err != nil {
+	cfg, err := config.LoadConfig()
+	if err != nil {
 		t.Skipf("skipping PG integration test (config load failed): %v", err)
 		return nil
 	}
-	dsn := config.Cfg.Database.DSN
+	dsn := cfg.Database.DSN
 	if dsn == "" {
 		t.Skipf("skipping PG integration test (no database DSN configured)")
 		return nil

@@ -5,15 +5,14 @@ import (
 	"net/http"
 	"strings"
 
-	"luminous/internal/config"
 	"luminous/internal/response"
 
 	"github.com/gin-gonic/gin"
 )
 
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(token string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if config.Cfg.Auth.AdminToken == "" {
+		if token == "" {
 			response.Error(c, http.StatusServiceUnavailable, "admin token not configured")
 			c.Abort()
 			return
@@ -33,8 +32,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		token := parts[1]
-		if subtle.ConstantTimeCompare([]byte(token), []byte(config.Cfg.Auth.AdminToken)) != 1 {
+		if subtle.ConstantTimeCompare([]byte(parts[1]), []byte(token)) != 1 {
 			response.Error(c, http.StatusUnauthorized, "invalid token")
 			c.Abort()
 			return

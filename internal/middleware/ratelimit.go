@@ -40,6 +40,11 @@ func newRateLimiter(rate, burst int) *rateLimiter {
 }
 
 func (rl *rateLimiter) cleanup(interval time.Duration) {
+	defer func() {
+		if r := recover(); r != nil {
+			go rl.cleanup(interval)
+		}
+	}()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -59,6 +64,8 @@ func (rl *rateLimiter) cleanup(interval time.Duration) {
 	}
 }
 
+const maxVisitors = 10000
+
 func (rl *rateLimiter) allow(ip string) (bool, int) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
@@ -66,6 +73,9 @@ func (rl *rateLimiter) allow(ip string) (bool, int) {
 	now := time.Now()
 	v, exists := rl.visitors[ip]
 	if !exists {
+		if len(rl.visitors) >= maxVisitors {
+			return false, 0
+		}
 		v = &visitor{tokens: float64(rl.burst), lastSeen: now}
 		rl.visitors[ip] = v
 	} else {

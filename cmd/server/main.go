@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -22,16 +23,17 @@ import (
 func main() {
 	slog.Info("Starting Luminous server")
 
-	if err := config.LoadConfig(); err != nil {
+	cfg, err := config.LoadConfig()
+	if err != nil {
 		slog.Error("Failed to load config", "error", err)
 		os.Exit(1)
 	}
 
-	gin.SetMode(config.Cfg.Server.Mode)
+	gin.SetMode(cfg.Server.Mode)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	pgRepo, err := repository.NewPGSchoolRepository(ctx, config.Cfg.Database)
+	pgRepo, err := repository.NewPGSchoolRepository(ctx, cfg.Database)
 	if err != nil {
 		slog.Error("Failed to initialize PostgreSQL repository", "error", err)
 		os.Exit(1)
@@ -40,13 +42,18 @@ func main() {
 
 	schoolHandler := handler.NewSchoolHandler(pgRepo)
 	adminHandler := handler.NewAdminHandler(pgRepo)
-	appHandler := handler.NewAppHandler()
+	appHandler := handler.NewAppHandler(cfg.Release)
 
-	r := router.SetupRouter(schoolHandler, adminHandler, appHandler,
-		config.Cfg.RateLimit.Rate, config.Cfg.RateLimit.Burst,
-		config.Cfg.Server.TrustedProxies)
+	r, err := router.SetupRouter(schoolHandler, adminHandler, appHandler,
+		cfg.Auth.AdminToken, cfg.Server.CORSOrigin,
+		cfg.RateLimit.Rate, cfg.RateLimit.Burst,
+		cfg.Server.TrustedProxies)
+	if err != nil {
+		slog.Error("Failed to setup router", "error", err)
+		os.Exit(1)
+	}
 
-	addr := fmt.Sprintf(":%d", config.Cfg.Server.Port)
+	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	srv := &http.Server{
 		Addr:           addr,
 		Handler:        r,
@@ -54,16 +61,17 @@ func main() {
 		WriteTimeout:   10 * time.Second,
 		IdleTimeout:    60 * time.Second,
 		MaxHeaderBytes: 1 << 20,
+		TLSConfig:      &tls.Config{MinVersion: tls.VersionTLS12},
 	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 
 	go func() {
-		cfg := config.Cfg.Server
-		if cfg.TLSCert != "" && cfg.TLSKey != "" {
+		srvCfg := cfg.Server
+		if srvCfg.TLSCert != "" && srvCfg.TLSKey != "" {
 			slog.Info("Server listening with TLS", "addr", addr)
-			if err := srv.ListenAndServeTLS(cfg.TLSCert, cfg.TLSKey); err != nil && err != http.ErrServerClosed {
+			if err := srv.ListenAndServeTLS(srvCfg.TLSCert, srvCfg.TLSKey); err != nil && err != http.ErrServerClosed {
 				slog.Error("Server failed", "error", err)
 				os.Exit(1)
 			}
@@ -81,10 +89,10 @@ func main() {
 	slog.Info("Shutting down server...")
 	middleware.StopRateLimiter()
 
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("Server forced to shutdown", "error", err)
 		os.Exit(1)
 	}

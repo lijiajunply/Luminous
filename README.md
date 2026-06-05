@@ -79,7 +79,7 @@ Luminous/
 
 | 文件 | 说明 |
 |------|------|
-| `model/school.go` | 核心数据模型。`School` 结构体（code、name、website、features、enabled、时间戳）；`Feature` 字符串枚举（10 种教务功能）及 `IsValidFeature()`；`CreateSchoolRequest`（必填）和 `UpdateSchoolRequest`（指针字段部分更新）；`IsValidSchoolCode()` 正则校验；`IsValidURL()` 校验。 |
+| `model/school.go` | 核心数据模型。`School` 结构体（code、name、website、features、enabled、时间戳）；`Feature` 字符串枚举（12 种教务功能）及 `IsValidFeature()`；`CreateSchoolRequest`（必填）和 `UpdateSchoolRequest`（指针字段部分更新）；`IsValidSchoolCode()` 正则校验；`IsValidURL()` 校验。 |
 | `model/releaseInfo.go` | App 版本信息结构体：`ReleaseInfo`、`AuthorInfo`、`AssetInfo`、`RawApiResponse`。映射上游 App 更新 API 的 JSON。 |
 
 ### 仓库层 (`internal/repository/`)
@@ -364,11 +364,13 @@ curl -X PUT http://localhost:8080/api/v1/admin/schools/XAUAT \
 | `grade_query` | 成绩查询 |
 | `gpa_calculation` | GPA 计算 |
 | `exam_schedule` | 考试安排 |
-| `course_selection` | 选课 |
+| `course_schedule` | 课程显示 |
 | `bus_schedule` | 校车时刻表 |
 | `program` | 培养方案 |
 | `study_progress` | 学业进度 |
-| `semester_info` | 学期信息 |
+| `electricity` | 电费查询 |
+| `payment` | 校园卡查询 |
+| `map` | 校园地图 |
 
 ## 数据迁移
 

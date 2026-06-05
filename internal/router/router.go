@@ -1,6 +1,7 @@
 package router
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -15,14 +16,16 @@ func SetupRouter(
 	schoolHandler *handler.SchoolHandler,
 	adminHandler *handler.AdminHandler,
 	appHandler *handler.AppHandler,
+	adminToken string,
+	corsOrigin string,
 	rateLimitRate, rateLimitBurst int,
 	trustedProxies string,
-) *gin.Engine {
+) (*gin.Engine, error) {
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 	r.Use(middleware.RequestIDMiddleware())
-	r.Use(middleware.CORSMiddleware())
+	r.Use(middleware.CORSMiddleware(corsOrigin))
 	r.Use(middleware.RateLimitMiddleware(rateLimitRate, rateLimitBurst))
 
 	if trustedProxies != "" {
@@ -31,11 +34,11 @@ func SetupRouter(
 			proxies[i] = strings.TrimSpace(p)
 		}
 		if err := r.SetTrustedProxies(proxies); err != nil {
-			panic(err)
+			return nil, fmt.Errorf("set trusted proxies: %w", err)
 		}
 	} else {
 		if err := r.SetTrustedProxies(nil); err != nil {
-			panic(err)
+			return nil, fmt.Errorf("set trusted proxies: %w", err)
 		}
 	}
 
@@ -56,7 +59,7 @@ func SetupRouter(
 
 	admin := r.Group("/api/v1/admin")
 	admin.Use(middleware.BodyLimitMiddleware(1 << 20)) // 1 MB
-	admin.Use(middleware.AuthMiddleware())
+	admin.Use(middleware.AuthMiddleware(adminToken))
 	{
 		admin.GET("/schools", adminHandler.AdminListSchools)
 		admin.POST("/schools", adminHandler.CreateSchool)
@@ -64,5 +67,5 @@ func SetupRouter(
 		admin.DELETE("/schools/:code", adminHandler.DeleteSchool)
 	}
 
-	return r
+	return r, nil
 }

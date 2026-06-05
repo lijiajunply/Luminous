@@ -23,7 +23,7 @@ func NewSchoolHandler(repo repository.SchoolRepository) *SchoolHandler {
 func (h *SchoolHandler) ListSchools(c *gin.Context) {
 	schools, err := h.repo.FindEnabled(c.Request.Context())
 	if err != nil {
-		slog.Error("failed to list schools", "error", err)
+		slog.Error("failed to list schools", "request_id", c.GetString("request_id"), "error", err)
 		response.Error(c, http.StatusInternalServerError, "failed to list schools")
 		return
 	}
@@ -41,7 +41,7 @@ func (h *SchoolHandler) GetSchool(c *gin.Context) {
 		if errors.Is(err, repository.ErrNotFound) {
 			response.Error(c, http.StatusNotFound, "school not found")
 		} else {
-			slog.Error("failed to get school", "code", code, "error", err)
+			slog.Error("failed to get school", "request_id", c.GetString("request_id"), "code", code, "error", err)
 			response.Error(c, http.StatusInternalServerError, "failed to get school")
 		}
 		return

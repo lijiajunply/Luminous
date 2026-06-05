@@ -16,6 +16,42 @@ import (
 
 const DefaultTimeout = 30 * time.Second
 const MaxRetries = 3
+const maxRedirects = 3
+
+var privateCIDRs = []string{
+	"10.0.0.0/8",
+	"172.16.0.0/12",
+	"192.168.0.0/16",
+	"127.0.0.0/8",
+	"169.254.0.0/16",
+	"::1/128",
+	"fe80::/10",
+}
+
+var privateNets []*net.IPNet
+
+func init() {
+	for _, cidr := range privateCIDRs {
+		_, block, err := net.ParseCIDR(cidr)
+		if err != nil {
+			panic("invalid built-in CIDR: " + cidr)
+		}
+		privateNets = append(privateNets, block)
+	}
+}
+
+func isPrivateIP(host string) bool {
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	for _, block := range privateNets {
+		if block.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
 
 var userAgents = []string{
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -42,10 +78,34 @@ type HTTPClient struct {
 	client *http.Client
 }
 
+func safeCheckRedirect(allowedHosts map[string]bool) func(*http.Request, []*http.Request) error {
+	return func(req *http.Request, via []*http.Request) error {
+		if len(via) >= maxRedirects {
+			return fmt.Errorf("stopped after %d redirects", maxRedirects)
+		}
+		host, _, err := net.SplitHostPort(req.URL.Host)
+		if err != nil {
+			host = req.URL.Host
+		}
+		if isPrivateIP(host) {
+			return fmt.Errorf("redirect to private IP forbidden: %s", host)
+		}
+		if len(allowedHosts) > 0 && !allowedHosts[host] {
+			return fmt.Errorf("redirect to unallowed host: %s", host)
+		}
+		return nil
+	}
+}
+
 func NewHTTPClient() *HTTPClient {
+	return NewHTTPClientWithAllowedHosts(nil)
+}
+
+func NewHTTPClientWithAllowedHosts(allowedHosts map[string]bool) *HTTPClient {
 	return &HTTPClient{
 		client: &http.Client{
-			Timeout: DefaultTimeout,
+			Timeout:        DefaultTimeout,
+			CheckRedirect:  safeCheckRedirect(allowedHosts),
 		},
 	}
 }
@@ -102,14 +162,22 @@ func (c *HTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return nil, fmt.Errorf("%w: %d after %d retries", errStatus, resp.StatusCode, MaxRetries)
 }
 
-func (c *HTTPClient) Get(url string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
+func (c *HTTPClient) setDefaultHeaders(req *http.Request) {
 	req.Header.Set("User-Agent", RandomUserAgent())
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+}
+
+func (c *HTTPClient) Get(url string) (*http.Response, error) {
+	return c.GetWithContext(context.Background(), url)
+}
+
+func (c *HTTPClient) GetWithContext(ctx context.Context, url string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	c.setDefaultHeaders(req)
 	return c.Do(req)
 }
 
@@ -128,13 +196,15 @@ func (c *HTTPClient) FetchWithCookie(url, cookie string) ([]byte, error) {
 }
 
 func (c *HTTPClient) GetWithCookie(url string, cookie string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", url, nil)
+	return c.GetWithCookieContext(context.Background(), url, cookie)
+}
+
+func (c *HTTPClient) GetWithCookieContext(ctx context.Context, url string, cookie string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", RandomUserAgent())
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	c.setDefaultHeaders(req)
 	if cookie != "" {
 		req.Header.Set("Cookie", cookie)
 	}
@@ -142,13 +212,11 @@ func (c *HTTPClient) GetWithCookie(url string, cookie string) (*http.Response, e
 }
 
 func (c *HTTPClient) GetWithHeaders(url string, headers map[string]string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", RandomUserAgent())
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	c.setDefaultHeaders(req)
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

@@ -39,7 +39,7 @@ func TestCreateAndFindAll(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	all, err := repo.FindAll(testCtx)
+	all, err := repo.FindAll(testCtx, 0, 0)
 	if err != nil {
 		t.Fatalf("FindAll: %v", err)
 	}

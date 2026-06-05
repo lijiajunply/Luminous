@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,12 +23,6 @@ func NewAdminHandler(repo repository.SchoolRepository) *AdminHandler {
 }
 
 func (h *AdminHandler) AdminListSchools(c *gin.Context) {
-	schools, err := h.Repo.FindAll(c.Request.Context())
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "failed to list schools")
-		return
-	}
-
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
 	if page < 1 {
@@ -36,24 +32,36 @@ func (h *AdminHandler) AdminListSchools(c *gin.Context) {
 		pageSize = 50
 	}
 
-	total := len(schools)
-	start := (page - 1) * pageSize
-	if start > total {
-		start = total
-	}
-	end := start + pageSize
-	if end > total {
-		end = total
+	schools, err := h.Repo.FindAll(c.Request.Context(), (page-1)*pageSize, pageSize)
+	if err != nil {
+		slog.Error("failed to list schools", "error", err)
+		response.Error(c, http.StatusInternalServerError, "failed to list schools")
+		return
 	}
 
-	paged := schools[start:end]
-	response.SuccessList(c, http.StatusOK, "success", total, paged)
+	total, err := h.Repo.Count(c.Request.Context())
+	if err != nil {
+		slog.Error("failed to count schools", "error", err)
+		response.Error(c, http.StatusInternalServerError, "failed to count schools")
+		return
+	}
+
+	response.SuccessList(c, http.StatusOK, "success", total, schools)
 }
 
 func (h *AdminHandler) CreateSchool(c *gin.Context) {
 	var req model.CreateSchoolRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid request: "+err.Error())
+		response.Error(c, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if !model.IsValidSchoolCode(req.Code) {
+		response.Error(c, http.StatusBadRequest, "invalid school code: must be 1-20 chars, uppercase alphanumeric, hyphens or underscores")
+		return
+	}
+	if !model.IsValidURL(req.Website) {
+		response.Error(c, http.StatusBadRequest, "invalid website URL")
 		return
 	}
 
@@ -73,11 +81,12 @@ func (h *AdminHandler) CreateSchool(c *gin.Context) {
 	}
 
 	if err := h.Repo.Create(c.Request.Context(), school); err != nil {
-		code := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "already exists") {
-			code = http.StatusConflict
+			response.Error(c, http.StatusConflict, "school already exists")
+			return
 		}
-		response.Error(c, code, err.Error())
+		slog.Error("failed to create school", "error", err)
+		response.Error(c, http.StatusInternalServerError, "failed to create school")
 		return
 	}
 	response.Success(c, http.StatusCreated, "school created", school)
@@ -85,16 +94,25 @@ func (h *AdminHandler) CreateSchool(c *gin.Context) {
 
 func (h *AdminHandler) UpdateSchool(c *gin.Context) {
 	code := c.Param("code")
+	if !model.IsValidSchoolCode(code) {
+		response.Error(c, http.StatusBadRequest, "invalid school code")
+		return
+	}
 
 	existing, err := h.Repo.FindByCode(c.Request.Context(), code)
 	if err != nil {
-		response.Error(c, http.StatusNotFound, "school not found")
+		if errors.Is(err, repository.ErrNotFound) {
+			response.Error(c, http.StatusNotFound, "school not found")
+		} else {
+			slog.Error("failed to get school for update", "code", code, "error", err)
+			response.Error(c, http.StatusInternalServerError, "failed to get school")
+		}
 		return
 	}
 
 	var req model.UpdateSchoolRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "invalid request: "+err.Error())
+		response.Error(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
@@ -102,6 +120,10 @@ func (h *AdminHandler) UpdateSchool(c *gin.Context) {
 		existing.Name = *req.Name
 	}
 	if req.Website != nil {
+		if !model.IsValidURL(*req.Website) {
+			response.Error(c, http.StatusBadRequest, "invalid website URL")
+			return
+		}
 		existing.Website = *req.Website
 	}
 	if req.Features != nil {
@@ -118,11 +140,8 @@ func (h *AdminHandler) UpdateSchool(c *gin.Context) {
 	}
 
 	if err := h.Repo.Update(c.Request.Context(), existing); err != nil {
-		status := http.StatusInternalServerError
-		if strings.Contains(err.Error(), "not found") {
-			status = http.StatusNotFound
-		}
-		response.Error(c, status, err.Error())
+		slog.Error("failed to update school", "code", code, "error", err)
+		response.Error(c, http.StatusInternalServerError, "failed to update school")
 		return
 	}
 	response.Success(c, http.StatusOK, "school updated", existing)
@@ -130,12 +149,13 @@ func (h *AdminHandler) UpdateSchool(c *gin.Context) {
 
 func (h *AdminHandler) DeleteSchool(c *gin.Context) {
 	code := c.Param("code")
+	if !model.IsValidSchoolCode(code) {
+		response.Error(c, http.StatusBadRequest, "invalid school code")
+		return
+	}
 	if err := h.Repo.Delete(c.Request.Context(), code); err != nil {
-		status := http.StatusInternalServerError
-		if strings.Contains(err.Error(), "not found") {
-			status = http.StatusNotFound
-		}
-		response.Error(c, status, err.Error())
+		slog.Error("failed to delete school", "code", code, "error", err)
+		response.Error(c, http.StatusInternalServerError, "failed to delete school")
 		return
 	}
 	response.Success(c, http.StatusOK, "school deleted", nil)

@@ -18,9 +18,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	data, err := os.ReadFile(config.Cfg.Data.SchoolsFile)
+	schoolsFile := "./data/schools.json"
+	if len(os.Args) > 1 {
+		schoolsFile = os.Args[1]
+	}
+
+	data, err := os.ReadFile(schoolsFile)
 	if err != nil {
-		slog.Error("Failed to read schools file", "path", config.Cfg.Data.SchoolsFile, "error", err)
+		slog.Error("Failed to read schools file", "path", schoolsFile, "error", err)
 		os.Exit(1)
 	}
 

@@ -5,13 +5,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"luminous/internal/config"
 	"luminous/internal/model"
+	"luminous/internal/response"
 	"luminous/internal/util"
 
 	"github.com/gin-gonic/gin"
 )
+
+var allowedUpstreamHosts = map[string]bool{
+	"appapi.xauat.site": true,
+}
 
 type AppHandler struct{}
 
@@ -29,29 +36,39 @@ func (h *AppHandler) GetTagModel(c *gin.Context) {
 		)
 	}
 
+	parsed, err := url.Parse(apiUrl)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "invalid upstream URL configured")
+		return
+	}
+	if !allowedUpstreamHosts[parsed.Host] && !allowedUpstreamHosts[strings.SplitN(parsed.Host, ":", 2)[0]] {
+		response.Error(c, http.StatusInternalServerError, "upstream host not allowed")
+		return
+	}
+
 	resp, err := util.DefaultClient.Get(apiUrl)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "upstream unreachable"})
+		response.Error(c, http.StatusBadGateway, "upstream unreachable")
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		io.Copy(io.Discard, resp.Body)
-		c.JSON(http.StatusBadGateway, gin.H{"error": "upstream returned error"})
+		response.Error(c, http.StatusBadGateway, "upstream returned error")
 		return
 	}
 
 	var rawData model.RawApiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&rawData); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid upstream response"})
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&rawData); err != nil {
+		response.Error(c, http.StatusInternalServerError, "invalid upstream response")
 		return
 	}
 
-	var name, url string
+	var name, downloadUrl string
 	if len(rawData.Softs) > 0 {
 		name = rawData.Softs[0].Name
-		url = rawData.Softs[0].SoftUrl
+		downloadUrl = rawData.Softs[0].SoftUrl
 	}
 
 	result := []model.ReleaseInfo{
@@ -60,10 +77,10 @@ func (h *AppHandler) GetTagModel(c *gin.Context) {
 			Name:    rawData.ReleaseId,
 			Body:    rawData.Context,
 			Assets: []model.AssetInfo{
-				{Name: name, BrowserDownloadUrl: url},
+				{Name: name, BrowserDownloadUrl: downloadUrl},
 			},
 		},
 	}
 
-	c.JSON(http.StatusOK, result)
+	response.SuccessList(c, http.StatusOK, "success", len(result), result)
 }

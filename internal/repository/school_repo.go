@@ -11,8 +11,11 @@ import (
 	"luminous/internal/model"
 )
 
+var ErrNotFound = fmt.Errorf("school not found")
+
 type SchoolRepository interface {
-	FindAll(ctx context.Context) ([]*model.School, error)
+	FindAll(ctx context.Context, offset, limit int) ([]*model.School, error)
+	Count(ctx context.Context) (int, error)
 	FindEnabled(ctx context.Context) ([]*model.School, error)
 	FindByCode(ctx context.Context, code string) (*model.School, error)
 	Create(ctx context.Context, school *model.School) error
@@ -65,7 +68,7 @@ func (r *JSONSchoolRepository) save() error {
 	return nil
 }
 
-func (r *JSONSchoolRepository) FindAll(_ context.Context) ([]*model.School, error) {
+func (r *JSONSchoolRepository) FindAll(_ context.Context, _, _ int) ([]*model.School, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -89,13 +92,19 @@ func (r *JSONSchoolRepository) FindEnabled(_ context.Context) ([]*model.School, 
 	return result, nil
 }
 
+func (r *JSONSchoolRepository) Count(_ context.Context) (int, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.schools), nil
+}
+
 func (r *JSONSchoolRepository) FindByCode(_ context.Context, code string) (*model.School, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	s, ok := r.schools[code]
 	if !ok {
-		return nil, fmt.Errorf("school not found: %s", code)
+		return nil, fmt.Errorf("%w: %s", ErrNotFound, code)
 	}
 	return s, nil
 }

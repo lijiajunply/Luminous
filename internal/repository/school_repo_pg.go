@@ -17,13 +17,11 @@ type PGSchoolRepository struct {
 }
 
 func NewPGSchoolRepository(ctx context.Context, dbConfig config.DatabaseConfig) (*PGSchoolRepository, error) {
-	dsn := dbConfig.DSN
-	if dsn == "" {
-		dsn = fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
-			dbConfig.User, dbConfig.Password, dbConfig.Host, dbConfig.Port, dbConfig.DBName, dbConfig.SSLMode)
+	if dbConfig.DSN == "" {
+		return nil, fmt.Errorf("database DSN is required")
 	}
 
-	poolCfg, err := pgxpool.ParseConfig(dsn)
+	poolCfg, err := pgxpool.ParseConfig(dbConfig.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("parse db config: %w", err)
 	}
@@ -82,15 +80,16 @@ func (r *PGSchoolRepository) autoMigrate(ctx context.Context) error {
 		"updated_at": "TIMESTAMPTZ NOT NULL DEFAULT NOW()",
 	}
 	for col, def := range columns {
-		_, err := r.pool.Exec(ctx, fmt.Sprintf(
+		_, err := r.pool.Exec(ctx,
 			`DO $$ BEGIN
 				IF NOT EXISTS (
 					SELECT 1 FROM information_schema.columns
-					WHERE table_name='schools' AND column_name='%s'
+					WHERE table_name='schools' AND column_name=$1
 				) THEN
-					ALTER TABLE schools ADD COLUMN %s %s;
+					ALTER TABLE schools ADD COLUMN `+pgx.Identifier{col}.Sanitize()+` `+def+`;
 				END IF;
-			END $$;`, col, col, def))
+			END $$;`,
+			col)
 		if err != nil {
 			return fmt.Errorf("migrate column %s: %w", col, err)
 		}
@@ -99,10 +98,10 @@ func (r *PGSchoolRepository) autoMigrate(ctx context.Context) error {
 	return nil
 }
 
-func (r *PGSchoolRepository) FindAll(ctx context.Context) ([]*model.School, error) {
+func (r *PGSchoolRepository) FindAll(ctx context.Context, offset, limit int) ([]*model.School, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT code, name, website, features, enabled, created_at, updated_at
-		 FROM schools ORDER BY code`)
+		 FROM schools ORDER BY code LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("find all schools: %w", err)
 	}
@@ -120,6 +119,15 @@ func (r *PGSchoolRepository) FindAll(ctx context.Context) ([]*model.School, erro
 		return nil, fmt.Errorf("iterate schools: %w", err)
 	}
 	return schools, nil
+}
+
+func (r *PGSchoolRepository) Count(ctx context.Context) (int, error) {
+	var n int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM schools`).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count schools: %w", err)
+	}
+	return n, nil
 }
 
 func (r *PGSchoolRepository) FindEnabled(ctx context.Context) ([]*model.School, error) {
@@ -213,7 +221,7 @@ func scanSchool(row pgx.Row) (*model.School, error) {
 		&s.Enabled, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("school not found")
+			return nil, fmt.Errorf("%w", ErrNotFound)
 		}
 		return nil, fmt.Errorf("scan school: %w", err)
 	}

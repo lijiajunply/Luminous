@@ -1,20 +1,24 @@
 package model
 
-import "time"
+import (
+	"net/url"
+	"regexp"
+	"time"
+)
 
 type Feature string
 
 const (
-	FeatureTimetable     Feature = "timetable"        // 课表显示
-	FeatureGradeQuery    Feature = "grade_query"      // 成绩查询
-	FeatureGPACalc       Feature = "gpa_calculation"  // GPA计算
-	FeatureCourseSelect  Feature = "course_selection" // 选课
-	FeatureExamSchedule  Feature = "exam_schedule"    // 考试安排
-	FeatureLogin         Feature = "login"            // 登录，最基础服务，必须满足
-	FeatureBusSchedule   Feature = "bus_schedule"     // 校车时刻表
-	FeatureProgram       Feature = "program"          // 培养方案
-	FeatureStudyProgress Feature = "study_progress"   // 学业进度
-	FeatureSemesterInfo  Feature = "semester_info"    // 学期信息
+	FeatureTimetable     Feature = "timetable"
+	FeatureGradeQuery    Feature = "grade_query"
+	FeatureGPACalc       Feature = "gpa_calculation"
+	FeatureCourseSelect  Feature = "course_selection"
+	FeatureExamSchedule  Feature = "exam_schedule"
+	FeatureLogin         Feature = "login"
+	FeatureBusSchedule   Feature = "bus_schedule"
+	FeatureProgram       Feature = "program"
+	FeatureStudyProgress Feature = "study_progress"
+	FeatureSemesterInfo  Feature = "semester_info"
 )
 
 var validFeatures = map[Feature]bool{
@@ -30,8 +34,19 @@ var validFeatures = map[Feature]bool{
 	FeatureSemesterInfo:  true,
 }
 
+var schoolCodeRe = regexp.MustCompile(`^[A-Z0-9_-]{1,20}$`)
+
 func IsValidFeature(f Feature) bool {
 	return validFeatures[f]
+}
+
+func IsValidSchoolCode(code string) bool {
+	return schoolCodeRe.MatchString(code)
+}
+
+func IsValidURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 type School struct {

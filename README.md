@@ -50,7 +50,6 @@ Luminous/
 │   │   └── router.go             # Gin 路由注册与中间件挂载
 │   └── util/
 │       └── httpclient.go         # HTTP 客户端（重试、User-Agent 轮换、超时）
-├── config.example.yaml           # 配置文件模板
 ├── config.yaml                   # 实际配置（Git ignored）
 ├── Dockerfile                    # 多阶段 Docker 构建
 ├── Makefile                      # run / build / clean / test 目标
@@ -122,7 +121,7 @@ Luminous/
 
 | 文件 | 说明 |
 |------|------|
-| `config.example.yaml` | 配置模板，包含 server / auth / release / database 四个 section 及全部可用字段的默认值。实际使用时复制为 `config.yaml`。 |
+| 环境变量 | 全部配置通过 `LUMINOUS_*` 环境变量注入，详见配置参考章节。本地开发可创建 `config.yaml` 并通过 `LUMINOUS_CONFIG_PATH=./config.yaml` 加载。 |
 | `Dockerfile` | 多阶段构建。阶段一用 `golang:1.26-alpine` 编译（`CGO_ENABLED=0`、strip）。阶段二用 `alpine:latest`，安装 ca-certificates + tzdata，复制二进制文件。暴露 8080 端口。 |
 | `Makefile` | 四个目标：`run`（`go run ./cmd/server/`）、`build`（输出 `bin/luminous`）、`clean`（删除 `bin/`）、`test`（`go test ./...`）。 |
 | `data/schools.json` | 4 所西安高校种子数据：NWPU（西北工业大学）、XAUAT（西安建筑科技大学）、XDU（西安电子科技大学）、XJTU（西安交通大学），含各自的 features 配置。 |
@@ -154,93 +153,82 @@ Luminous/
 
 ## 快速开始
 
+### 生产环境（环境变量）
+
 ```bash
-# 1. 准备 PostgreSQL，创建数据库
-# 2. 复制并编辑配置文件
-cp config.example.yaml config.yaml
+# 必需配置
+export LUMINOUS_DATABASE_DSN="postgresql://user:password@host:port/dbname?sslmode=require"
+export LUMINOUS_AUTH_ADMIN_TOKEN="your-admin-secret-token"
 
-# 3. 启动服务（首次启动自动建表）
-go run ./cmd/server/
+# 启动服务（首次启动自动建表）
+./luminous
 
-# 4. 验证
+# 验证
 curl http://localhost:8080/healthz
-curl http://localhost:8080/api/v1/schools
 ```
 
-## 配置
+### 本地开发（可选 YAML 文件）
 
-所有配置项支持 `config.yaml` 文件和 `LUMINOUS_` 前缀环境变量覆盖（`.` 替换为 `_`）。
+```bash
+# 创建本地配置
+cat > config.yaml << 'EOF'
+server:
+  mode: debug
+  cors_origin: "*"
+database:
+  dsn: "postgresql://luminous:luminous@localhost:5432/luminous?sslmode=disable"
+  pool_max_conns: 20
+  pool_min_conns: 5
+EOF
+
+# 通过 LUMINOUS_CONFIG_PATH 加载文件
+export LUMINOUS_CONFIG_PATH="./config.yaml"
+go run ./cmd/server/
+```
+
+## 配置参考
+
+所有配置通过 `LUMINOUS_` 前缀环境变量注入（`.` 替换为 `_`）。YAML 文件仅作本地开发辅助，通过 `LUMINOUS_CONFIG_PATH` 可选加载。
 
 ### 服务配置
 
-| 字段 | 环境变量 | 默认值 | 说明 |
-|------|----------|--------|------|
-| `server.port` | `LUMINOUS_SERVER_PORT` | `8080` | HTTP 监听端口 |
-| `server.mode` | `LUMINOUS_SERVER_MODE` | `debug` | Gin 运行模式（debug / release / test） |
-| `server.cors_origin` | `LUMINOUS_SERVER_CORS_ORIGIN` | `*` | CORS 允许来源（生产环境应设为具体域名） |
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `LUMINOUS_SERVER_PORT` | `8080` | HTTP 监听端口 |
+| `LUMINOUS_SERVER_MODE` | `release` | Gin 运行模式（debug / release / test） |
+| `LUMINOUS_SERVER_CORS_ORIGIN` | `""` | CORS 允许来源（生产环境应设为具体域名） |
+| `LUMINOUS_SERVER_TLS_CERT` | `""` | TLS 证书路径（与 TLS_KEY 同时设置启用 HTTPS） |
+| `LUMINOUS_SERVER_TLS_KEY` | `""` | TLS 私钥路径 |
+| `LUMINOUS_SERVER_TRUSTED_PROXIES` | `""` | 反向代理 CIDR，逗号分隔（如 `10.0.0.0/8,172.16.0.0/12`）。未设置时 `ClientIP` 取直连 IP |
 
 ### 认证配置
 
-| 字段 | 环境变量 | 默认值 | 说明 |
-|------|----------|--------|------|
-| `auth.admin_token` | `LUMINOUS_AUTH_ADMIN_TOKEN` | `""` | 管理员 Bearer Token（未配置时 admin 路由返回 503） |
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `LUMINOUS_AUTH_ADMIN_TOKEN` | `""` | 管理员 Bearer Token（未配置时 admin 路由返回 503） |
 
 ### 发布信息配置
 
-| 字段 | 环境变量 | 默认值 | 说明 |
-|------|----------|--------|------|
-| `release.api_url` | `LUMINOUS_RELEASE_API_URL` | `""` | 上游 App 信息 API 完整 URL（优先级最高） |
-| `release.app_uuid` | `LUMINOUS_RELEASE_APP_UUID` | `5f278ffc-...` | App UUID，用于拼接默认上游 URL |
-| `release.channel_id` | `LUMINOUS_RELEASE_CHANNEL_ID` | `9e1a198a-...` | 渠道 ID，用于拼接默认上游 URL |
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `LUMINOUS_RELEASE_API_URL` | `""` | 上游 App 信息 API 完整 URL（设置后覆盖以下两项） |
+| `LUMINOUS_RELEASE_APP_UUID` | `5f278ffc-...` | App UUID |
+| `LUMINOUS_RELEASE_CHANNEL_ID` | `9e1a198a-...` | 渠道 ID |
 
 ### 数据库配置
 
-DSN 优先级高于分字段配置。
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `LUMINOUS_DATABASE_DSN` | `""` | PostgreSQL 连接串（必填） |
+| `LUMINOUS_DATABASE_POOL_MAX_CONNS` | `20` | 连接池最大连接数 |
+| `LUMINOUS_DATABASE_POOL_MIN_CONNS` | `5` | 连接池最小连接数 |
 
-**方式一：DSN 直连**
+### 速率限制配置
 
-| 字段 | 环境变量 | 说明 |
-|------|----------|------|
-| `database.dsn` | `LUMINOUS_DATABASE_DSN` | 完整 PostgreSQL 连接串 |
-
-**方式二：分字段**
-
-| 字段 | 环境变量 | 默认值 | 说明 |
-|------|----------|--------|------|
-| `database.host` | `LUMINOUS_DATABASE_HOST` | `localhost` | 数据库主机 |
-| `database.port` | `LUMINOUS_DATABASE_PORT` | `5432` | 数据库端口 |
-| `database.user` | `LUMINOUS_DATABASE_USER` | `luminous` | 数据库用户 |
-| `database.password` | `LUMINOUS_DATABASE_PASSWORD` | `luminous` | 数据库密码 |
-| `database.dbname` | `LUMINOUS_DATABASE_DBNAME` | `luminous` | 数据库名 |
-| `database.sslmode` | `LUMINOUS_DATABASE_SSLMODE` | `disable` | SSL 模式 |
-| `database.pool_max_conns` | `LUMINOUS_DATABASE_POOL_MAX_CONNS` | `20` | 连接池最大连接数 |
-| `database.pool_min_conns` | `LUMINOUS_DATABASE_POOL_MIN_CONNS` | `5` | 连接池最小连接数 |
-
-### 配置示例
-
-```yaml
-server:
-  port: 8080
-  mode: release
-  cors_origin: "https://myapp.example.com"
-
-auth:
-  admin_token: "your-admin-secret-token"
-
-release:
-  app_uuid: "5f278ffc-5a70-4805-a6bf-0543040981a8"
-  channel_id: "9e1a198a-a0c2-4017-b492-f2d0e5bee437"
-
-database:
-  host: "localhost"
-  port: 5432
-  user: "luminous"
-  password: "luminous"
-  dbname: "luminous"
-  sslmode: "disable"
-  pool_max_conns: 20
-  pool_min_conns: 5
-```
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `LUMINOUS_RATE_LIMIT_RATE` | `10` | 令牌桶填充速率（令牌/秒） |
+| `LUMINOUS_RATE_LIMIT_BURST` | `30` | 令牌桶最大容量（突发请求数） |
 
 
 ## API 文档

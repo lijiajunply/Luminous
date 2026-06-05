@@ -70,6 +70,13 @@ func (c *HTTPClient) Do(req *http.Request) (*http.Response, error) {
 	var err error
 
 	for i := 0; i < MaxRetries; i++ {
+		if i > 0 && req.GetBody != nil {
+			body, err := req.GetBody()
+			if err != nil {
+				return nil, err
+			}
+			req.Body = body
+		}
 		resp, err = c.client.Do(req)
 		if err == nil {
 			if resp.StatusCode >= 500 {

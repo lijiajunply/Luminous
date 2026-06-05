@@ -4,9 +4,9 @@ package repository
 
 import (
 	"context"
-	"os"
 	"testing"
 
+	"luminous/internal/config"
 	"luminous/internal/model"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,9 +15,14 @@ import (
 func setupPGTest(t *testing.T) *PGSchoolRepository {
 	t.Helper()
 
-	dsn := os.Getenv("LUMINOUS_TEST_DATABASE_URL")
+	if err := config.LoadConfig(); err != nil {
+		t.Skipf("skipping PG integration test (config load failed): %v", err)
+		return nil
+	}
+	dsn := config.Cfg.Database.DSN
 	if dsn == "" {
-		dsn = "postgres://luminous:luminous@localhost:5432/luminous?sslmode=disable"
+		t.Skipf("skipping PG integration test (no database DSN configured)")
+		return nil
 	}
 
 	ctx := context.Background()
@@ -64,7 +69,7 @@ func TestPGCreateAndFindAll(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	all, err := repo.FindAll(testCtx)
+	all, err := repo.FindAll(testCtx, 0, 0)
 	if err != nil {
 		t.Fatalf("FindAll: %v", err)
 	}

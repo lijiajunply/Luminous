@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine3.21 AS builder
+FROM golang:1.26-alpine AS builder
 
 RUN apk add --no-cache git ca-certificates
 
@@ -11,7 +11,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o luminous ./cmd/server/
 
-FROM alpine:3.21
+FROM alpine:latest
 
 RUN apk add --no-cache ca-certificates tzdata
 

@@ -16,17 +16,20 @@
   "XAUAT": {
     "code": "XAUAT",
     "name": "西安建筑科技大学",
-    "website": "https://xauatapi.xauat.site",
+    "website": "https://xauatapi.xauat.site/v1",
     "features": [
       "login",
       "timetable",
+      "course_schedule",
       "grade_query",
       "gpa_calculation",
       "exam_schedule",
-      "semester_info",
       "bus_schedule",
       "program",
-      "study_progress"
+      "study_progress",
+      "electricity",
+      "payment",
+      "map"
     ],
     "enabled": true,
     "created_at": "2026-01-01T00:00:00Z",
@@ -35,7 +38,7 @@
   "XDU": {
     "code": "XDU",
     "name": "西安电子科技大学",
-    "website": "https://xidianapi.xauat.site",
+    "website": "https://xidianapi.xauat.site/v1",
     "features": [
       "timetable",
       "grade_query",

@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -10,11 +11,11 @@ import (
 )
 
 type ServerConfig struct {
-	Port          int
-	Mode          string
-	CORSOrigin    string
-	TLSCert       string
-	TLSKey        string
+	Port           int
+	Mode           string
+	CORSOrigin     string
+	TLSCert        string
+	TLSKey         string
 	TrustedProxies string
 }
 
@@ -49,17 +50,19 @@ type AppConfig struct {
 
 var Cfg *AppConfig
 
+var bom = []byte{0xEF, 0xBB, 0xBF}
+
 func loadEnvFile(path string) error {
-	f, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
 		return fmt.Errorf("open .env file: %w", err)
 	}
-	defer f.Close()
 
-	scanner := bufio.NewScanner(f)
+	data = bytes.TrimPrefix(data, bom)
+	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -92,6 +95,7 @@ func getEnvInt(key string, fallback int) int {
 		if n, err := strconv.Atoi(v); err == nil {
 			return n
 		}
+		fmt.Fprintf(os.Stderr, "WARNING: invalid integer for %s=%q, using default %d\n", key, v, fallback)
 	}
 	return fallback
 }
@@ -103,11 +107,11 @@ func LoadConfig() error {
 
 	Cfg = &AppConfig{
 		Server: ServerConfig{
-			Port:          getEnvInt("LUMINOUS_SERVER_PORT", 8080),
-			Mode:          getEnv("LUMINOUS_SERVER_MODE", "release"),
-			CORSOrigin:    getEnv("LUMINOUS_SERVER_CORS_ORIGIN", ""),
-			TLSCert:       getEnv("LUMINOUS_SERVER_TLS_CERT", ""),
-			TLSKey:        getEnv("LUMINOUS_SERVER_TLS_KEY", ""),
+			Port:           getEnvInt("LUMINOUS_SERVER_PORT", 8080),
+			Mode:           getEnv("LUMINOUS_SERVER_MODE", "release"),
+			CORSOrigin:     getEnv("LUMINOUS_SERVER_CORS_ORIGIN", ""),
+			TLSCert:        getEnv("LUMINOUS_SERVER_TLS_CERT", ""),
+			TLSKey:         getEnv("LUMINOUS_SERVER_TLS_KEY", ""),
 			TrustedProxies: getEnv("LUMINOUS_SERVER_TRUSTED_PROXIES", ""),
 		},
 		Auth: AuthConfig{
@@ -127,6 +131,12 @@ func LoadConfig() error {
 			Rate:  getEnvInt("LUMINOUS_RATE_LIMIT_RATE", 10),
 			Burst: getEnvInt("LUMINOUS_RATE_LIMIT_BURST", 30),
 		},
+	}
+
+	switch Cfg.Server.Mode {
+	case "debug", "release", "test":
+	default:
+		return fmt.Errorf("invalid server mode: %q (must be debug, release, or test)", Cfg.Server.Mode)
 	}
 
 	if Cfg.Auth.AdminToken == "" {

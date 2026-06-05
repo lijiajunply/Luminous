@@ -36,5 +36,8 @@ postman/
 # Claude
 .claude/
 
+# Debug notes
+DEBUG.md
+
 # ReferenceCode
 Ref/

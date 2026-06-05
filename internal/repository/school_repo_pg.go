@@ -80,16 +80,8 @@ func (r *PGSchoolRepository) autoMigrate(ctx context.Context) error {
 		"updated_at": "TIMESTAMPTZ NOT NULL DEFAULT NOW()",
 	}
 	for col, def := range columns {
-		_, err := r.pool.Exec(ctx,
-			`DO $$ BEGIN
-				IF NOT EXISTS (
-					SELECT 1 FROM information_schema.columns
-					WHERE table_name='schools' AND column_name=$1
-				) THEN
-					ALTER TABLE schools ADD COLUMN `+pgx.Identifier{col}.Sanitize()+` `+def+`;
-				END IF;
-			END $$;`,
-			col)
+		query := `ALTER TABLE schools ADD COLUMN IF NOT EXISTS ` + pgx.Identifier{col}.Sanitize() + ` ` + def
+		_, err := r.pool.Exec(ctx, query)
 		if err != nil {
 			return fmt.Errorf("migrate column %s: %w", col, err)
 		}
@@ -99,9 +91,17 @@ func (r *PGSchoolRepository) autoMigrate(ctx context.Context) error {
 }
 
 func (r *PGSchoolRepository) FindAll(ctx context.Context, offset, limit int) ([]*model.School, error) {
-	rows, err := r.pool.Query(ctx,
-		`SELECT code, name, website, features, enabled, created_at, updated_at
-		 FROM schools ORDER BY code LIMIT $1 OFFSET $2`, limit, offset)
+	var rows pgx.Rows
+	var err error
+	if limit > 0 {
+		rows, err = r.pool.Query(ctx,
+			`SELECT code, name, website, features, enabled, created_at, updated_at
+			 FROM schools ORDER BY code LIMIT $1 OFFSET $2`, limit, offset)
+	} else {
+		rows, err = r.pool.Query(ctx,
+			`SELECT code, name, website, features, enabled, created_at, updated_at
+			 FROM schools ORDER BY code`)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("find all schools: %w", err)
 	}
@@ -179,7 +179,7 @@ func (r *PGSchoolRepository) Create(ctx context.Context, school *model.School) e
 		return fmt.Errorf("create school: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("school already exists: %s", school.Code)
+		return fmt.Errorf("%w: %s", ErrAlreadyExists, school.Code)
 	}
 	return nil
 }
@@ -197,7 +197,7 @@ func (r *PGSchoolRepository) Update(ctx context.Context, school *model.School) e
 		return fmt.Errorf("update school: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("school not found: %s", school.Code)
+		return fmt.Errorf("%w: %s", ErrNotFound, school.Code)
 	}
 	return nil
 }
@@ -209,7 +209,7 @@ func (r *PGSchoolRepository) Delete(ctx context.Context, code string) error {
 		return fmt.Errorf("delete school: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("school not found: %s", code)
+		return fmt.Errorf("%w: %s", ErrNotFound, code)
 	}
 	return nil
 }

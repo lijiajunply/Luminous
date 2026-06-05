@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"luminous/internal/model"
 	"luminous/internal/repository"
@@ -15,16 +14,24 @@ import (
 )
 
 type AdminHandler struct {
-	Repo repository.SchoolRepository
+	repo repository.SchoolRepository
 }
 
 func NewAdminHandler(repo repository.SchoolRepository) *AdminHandler {
-	return &AdminHandler{Repo: repo}
+	return &AdminHandler{repo: repo}
 }
 
 func (h *AdminHandler) AdminListSchools(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil {
+		slog.Warn("invalid page parameter, using default", "raw", c.Query("page"))
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(c.DefaultQuery("page_size", "50"))
+	if err != nil {
+		slog.Warn("invalid page_size parameter, using default", "raw", c.Query("page_size"))
+		pageSize = 50
+	}
 	if page < 1 {
 		page = 1
 	}
@@ -32,14 +39,14 @@ func (h *AdminHandler) AdminListSchools(c *gin.Context) {
 		pageSize = 50
 	}
 
-	schools, err := h.Repo.FindAll(c.Request.Context(), (page-1)*pageSize, pageSize)
+	schools, err := h.repo.FindAll(c.Request.Context(), (page-1)*pageSize, pageSize)
 	if err != nil {
 		slog.Error("failed to list schools", "error", err)
 		response.Error(c, http.StatusInternalServerError, "failed to list schools")
 		return
 	}
 
-	total, err := h.Repo.Count(c.Request.Context())
+	total, err := h.repo.Count(c.Request.Context())
 	if err != nil {
 		slog.Error("failed to count schools", "error", err)
 		response.Error(c, http.StatusInternalServerError, "failed to count schools")
@@ -50,6 +57,10 @@ func (h *AdminHandler) AdminListSchools(c *gin.Context) {
 }
 
 func (h *AdminHandler) CreateSchool(c *gin.Context) {
+	if ct := c.ContentType(); ct != "application/json" {
+		response.Error(c, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
+		return
+	}
 	var req model.CreateSchoolRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, "invalid request body")
@@ -80,8 +91,8 @@ func (h *AdminHandler) CreateSchool(c *gin.Context) {
 		Enabled:  true,
 	}
 
-	if err := h.Repo.Create(c.Request.Context(), school); err != nil {
-		if strings.Contains(err.Error(), "already exists") {
+	if err := h.repo.Create(c.Request.Context(), school); err != nil {
+		if errors.Is(err, repository.ErrAlreadyExists) {
 			response.Error(c, http.StatusConflict, "school already exists")
 			return
 		}
@@ -99,7 +110,7 @@ func (h *AdminHandler) UpdateSchool(c *gin.Context) {
 		return
 	}
 
-	existing, err := h.Repo.FindByCode(c.Request.Context(), code)
+	existing, err := h.repo.FindByCode(c.Request.Context(), code)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			response.Error(c, http.StatusNotFound, "school not found")
@@ -110,6 +121,10 @@ func (h *AdminHandler) UpdateSchool(c *gin.Context) {
 		return
 	}
 
+	if ct := c.ContentType(); ct != "application/json" {
+		response.Error(c, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
+		return
+	}
 	var req model.UpdateSchoolRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, "invalid request body")
@@ -139,7 +154,7 @@ func (h *AdminHandler) UpdateSchool(c *gin.Context) {
 		existing.Enabled = *req.Enabled
 	}
 
-	if err := h.Repo.Update(c.Request.Context(), existing); err != nil {
+	if err := h.repo.Update(c.Request.Context(), existing); err != nil {
 		slog.Error("failed to update school", "code", code, "error", err)
 		response.Error(c, http.StatusInternalServerError, "failed to update school")
 		return
@@ -153,7 +168,7 @@ func (h *AdminHandler) DeleteSchool(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "invalid school code")
 		return
 	}
-	if err := h.Repo.Delete(c.Request.Context(), code); err != nil {
+	if err := h.repo.Delete(c.Request.Context(), code); err != nil {
 		slog.Error("failed to delete school", "code", code, "error", err)
 		response.Error(c, http.StatusInternalServerError, "failed to delete school")
 		return

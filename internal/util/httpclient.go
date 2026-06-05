@@ -120,6 +120,9 @@ func (c *HTTPClient) FetchWithCookie(url, cookie string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if resp == nil {
+		return nil, fmt.Errorf("nil response from server")
+	}
 	defer resp.Body.Close()
 	return io.ReadAll(resp.Body)
 }
@@ -144,6 +147,8 @@ func (c *HTTPClient) GetWithHeaders(url string, headers map[string]string) (*htt
 		return nil, err
 	}
 	req.Header.Set("User-Agent", RandomUserAgent())
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

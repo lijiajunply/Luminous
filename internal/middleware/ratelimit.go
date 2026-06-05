@@ -12,20 +12,26 @@ import (
 type rateLimiter struct {
 	mu       sync.Mutex
 	visitors map[string]*visitor
-	rate     int
+	rate     float64
 	burst    int
 	stop     chan struct{}
 }
 
 type visitor struct {
-	tokens   int
+	tokens   float64
 	lastSeen time.Time
 }
 
 func newRateLimiter(rate, burst int) *rateLimiter {
+	if rate <= 0 {
+		rate = 10
+	}
+	if burst <= 0 {
+		burst = 30
+	}
 	rl := &rateLimiter{
 		visitors: make(map[string]*visitor),
-		rate:     rate,
+		rate:     float64(rate),
 		burst:    burst,
 		stop:     make(chan struct{}),
 	}
@@ -60,39 +66,43 @@ func (rl *rateLimiter) allow(ip string) (bool, int) {
 	now := time.Now()
 	v, exists := rl.visitors[ip]
 	if !exists {
-		rl.visitors[ip] = &visitor{tokens: rl.burst - 1, lastSeen: now}
-		return true, rl.burst - 1
+		v = &visitor{tokens: float64(rl.burst), lastSeen: now}
+		rl.visitors[ip] = v
+	} else {
+		elapsed := now.Sub(v.lastSeen).Seconds()
+		v.lastSeen = now
+		v.tokens += elapsed * rl.rate
+		if v.tokens > float64(rl.burst) {
+			v.tokens = float64(rl.burst)
+		}
 	}
 
-	elapsed := now.Sub(v.lastSeen)
-	v.lastSeen = now
-	v.tokens += int(elapsed.Seconds() * float64(rl.rate))
-	if v.tokens > rl.burst {
-		v.tokens = rl.burst
-	}
-
-	if v.tokens > 0 {
+	if v.tokens >= 1 {
 		v.tokens--
-		return true, v.tokens
+		return true, int(v.tokens)
 	}
 	return false, 0
 }
 
 var defaultLimiter *rateLimiter
-
-func init() {
-	defaultLimiter = newRateLimiter(10, 30)
-}
+var defaultMu sync.Mutex
 
 func StopRateLimiter() {
-	close(defaultLimiter.stop)
+	defaultMu.Lock()
+	defer defaultMu.Unlock()
+	if defaultLimiter != nil {
+		close(defaultLimiter.stop)
+		defaultLimiter = nil
+	}
 }
 
 func RateLimitMiddleware(rate, burst int) gin.HandlerFunc {
-	limiter := defaultLimiter
-	if rate != 10 || burst != 30 {
-		limiter = newRateLimiter(rate, burst)
+	defaultMu.Lock()
+	if defaultLimiter == nil {
+		defaultLimiter = newRateLimiter(rate, burst)
 	}
+	limiter := defaultLimiter
+	defaultMu.Unlock()
 
 	return func(c *gin.Context) {
 		ip := c.ClientIP()

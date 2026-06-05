@@ -65,7 +65,9 @@ func TestFindByCode(t *testing.T) {
 		Features: []model.Feature{},
 		Enabled:  true,
 	}
-	repo.Create(testCtx, school)
+	if err := repo.Create(testCtx, school); err != nil {
+		t.Fatal(err)
+	}
 
 	found, err := repo.FindByCode(testCtx, "FIND")
 	if err != nil {
@@ -90,8 +92,12 @@ func TestFindEnabled(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	repo.Create(testCtx, &model.School{Code: "ON", Name: "On", Website: "https://a.edu", Features: nil, Enabled: true})
-	repo.Create(testCtx, &model.School{Code: "OFF", Name: "Off", Website: "https://b.edu", Features: nil, Enabled: false})
+	if err := repo.Create(testCtx, &model.School{Code: "ON", Name: "On", Website: "https://a.edu", Features: nil, Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Create(testCtx, &model.School{Code: "OFF", Name: "Off", Website: "https://b.edu", Features: nil, Enabled: false}); err != nil {
+		t.Fatal(err)
+	}
 
 	enabled, err := repo.FindEnabled(testCtx)
 	if err != nil {
@@ -111,7 +117,9 @@ func TestUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	repo.Create(testCtx, &model.School{Code: "UPD", Name: "Old", Website: "https://old.edu", Features: nil, Enabled: true})
+	if err := repo.Create(testCtx, &model.School{Code: "UPD", Name: "Old", Website: "https://old.edu", Features: nil, Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
 
 	updated := &model.School{Code: "UPD", Name: "New", Website: "https://new.edu", Features: nil, Enabled: false}
 	if err := repo.Update(testCtx, updated); err != nil {
@@ -133,7 +141,9 @@ func TestDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	repo.Create(testCtx, &model.School{Code: "DEL", Name: "Delete Me", Website: "https://del.edu", Features: nil, Enabled: true})
+	if err := repo.Create(testCtx, &model.School{Code: "DEL", Name: "Delete Me", Website: "https://del.edu", Features: nil, Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := repo.Delete(testCtx, "DEL"); err != nil {
 		t.Fatalf("Delete: %v", err)
@@ -152,7 +162,9 @@ func TestCreateDuplicate(t *testing.T) {
 	}
 
 	school := &model.School{Code: "DUP", Name: "Dup", Website: "https://dup.edu", Features: nil, Enabled: true}
-	repo.Create(testCtx, school)
+	if err := repo.Create(testCtx, school); err != nil {
+		t.Fatal(err)
+	}
 
 	err = repo.Create(testCtx, school)
 	if err == nil {
@@ -164,7 +176,9 @@ func TestPersistenceAcrossInstances(t *testing.T) {
 	path := tempFile(t)
 
 	repo1, _ := NewJSONSchoolRepository(path)
-	repo1.Create(testCtx, &model.School{Code: "PERSIST", Name: "Persist", Website: "https://p.edu", Features: nil, Enabled: true})
+	if err := repo1.Create(testCtx, &model.School{Code: "PERSIST", Name: "Persist", Website: "https://p.edu", Features: nil, Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
 
 	repo2, err := NewJSONSchoolRepository(path)
 	if err != nil {
@@ -193,8 +207,12 @@ func TestCount(t *testing.T) {
 		t.Fatalf("expected 0, got %d", n)
 	}
 
-	repo.Create(testCtx, &model.School{Code: "A", Name: "A", Website: "https://a.edu", Features: nil, Enabled: true})
-	repo.Create(testCtx, &model.School{Code: "B", Name: "B", Website: "https://b.edu", Features: nil, Enabled: true})
+	if err := repo.Create(testCtx, &model.School{Code: "A", Name: "A", Website: "https://a.edu", Features: nil, Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Create(testCtx, &model.School{Code: "B", Name: "B", Website: "https://b.edu", Features: nil, Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
 
 	n, err = repo.Count(testCtx)
 	if err != nil {
@@ -212,7 +230,9 @@ func TestFindAllPagination(t *testing.T) {
 	}
 
 	for _, code := range []string{"A", "B", "C", "D", "E"} {
-		repo.Create(testCtx, &model.School{Code: code, Name: code, Website: "https://" + code + ".edu", Features: nil, Enabled: true})
+		if err := repo.Create(testCtx, &model.School{Code: code, Name: code, Website: "https://" + code + ".edu", Features: nil, Enabled: true}); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	all, err := repo.FindAll(testCtx, 0, 0)

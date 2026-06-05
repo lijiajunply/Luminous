@@ -95,8 +95,8 @@ Luminous/
 
 | 文件 | 说明 |
 |------|------|
-| `handler/school.go` | `SchoolHandler` — 公开查询。`ListSchools` 返回启用学校；`GetSchool` 按 code 查询，区分 `ErrNotFound`（404）与 DB 错误（500）。 |
-| `handler/admin.go` | `AdminHandler` — 管理 CRUD。`AdminListSchools` 支持 `?page=&page_size=` 分页（SQL 层 `LIMIT/OFFSET`），通过 `Count()` 返回真实 total。`CreateSchool` 校验 Feature、Code、URL 后入库（重复返回 409）。`UpdateSchool` 指针字段部分更新。`DeleteSchool` 按 code 删除。 |
+| `handler/school.go` | `SchoolHandler` — 公开查询。`ListSchools` 返回启用学校；`GetSchool` 按 code 查询，区分 `ErrNotFound`（404）与 DB 错误（500），禁用学校同样返回 404。 |
+| `handler/admin.go` | `AdminHandler` — 管理 CRUD。`AdminListSchools` 支持 `?page=&page_size=` 分页（SQL 层 `LIMIT/OFFSET`），通过 `Count()` 返回真实 total。`CreateSchool` 强制 `Content-Type: application/json`（否则 415），校验 Feature、Code、URL 后入库（重复返回 409）。`UpdateSchool` 指针字段部分更新。`DeleteSchool` 按 code 删除。 |
 | `handler/app.go` | `AppHandler` — App 版本代理。SSRF 防护（hostname 白名单），响应体 1MB 限制，统一 `response.SuccessList` 格式。 |
 | `handler/school_service.go` | `SchoolServiceHandler` 接口：`Code() + RegisterRoutes(*gin.RouterGroup)`。为新学校类型接入预留的扩展点。 |
 
@@ -115,7 +115,7 @@ Luminous/
 | 文件 | 说明 |
 |------|------|
 | `response/response.go` | 统一 JSON 响应。`Success()`、`Error()`、`SuccessList()` 三个辅助函数。 |
-| `router/router.go` | 路由注册。中间件链：Logger → Recovery → RequestID → CORS → RateLimit。`/healthz` 健康检查。公开路由（`/api/v1/schools`、`/api/v1/App`）。Admin 路由组额外应用 BodyLimit + Auth。支持反向代理 CIDR 配置。 |
+| `router/router.go` | 路由注册。中间件链：Logger → Recovery → RequestID → CORS → RateLimit。`NoRoute` 返回统一 404 格式。`/healthz` 健康检查。公开路由（`/api/v1/schools`、`/api/v1/app`）。Admin 路由组额外应用 BodyLimit + Auth。支持反向代理 CIDR 配置。 |
 | `util/httpclient.go` | HTTP 客户端。30s 超时，最多 3 次重试（超时 / DeadlineExceeded / 5xx，指数退避）。随机 User-Agent 轮换。重试时通过 `GetBody` 重置请求体。 |
 
 ## 配置参考
@@ -309,7 +309,7 @@ go vet ./...
 | 404 | 学校不存在或未启用 |
 | 500 | 服务器内部错误 |
 
-#### `GET /api/v1/App`
+#### `GET /api/v1/app`
 
 获取 App 版本更新信息（代理上游 API）。
 
@@ -324,11 +324,13 @@ Authorization: Bearer <admin_token>
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/v1/admin/schools` | 列出所有学校（含未启用），支持 `?page=1&page_size=50` |
-| POST | `/api/v1/admin/schools` | 新增学校 |
-| PUT | `/api/v1/admin/schools/:code` | 部分更新学校 |
+| POST | `/api/v1/admin/schools` | 新增学校（需 `Content-Type: application/json`） |
+| PUT | `/api/v1/admin/schools/:code` | 部分更新学校（需 `Content-Type: application/json`） |
 | DELETE | `/api/v1/admin/schools/:code` | 删除学校 |
 
-**分页：** `page` 默认 1，`page_size` 默认 50，最大 200。
+**状态码：** 415 — Content-Type 非 `application/json`；409 — 重复 code；422 — 无效字段值。
+
+**分页：** `page` 默认 1，`page_size` 默认 50，最大 200。无效值自动回退默认值并记录警告。
 
 **新增学校：**
 

@@ -1,17 +1,22 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
 	"luminous/internal/model"
 )
 
-var ErrNotFound = fmt.Errorf("school not found")
+var (
+	ErrNotFound      = fmt.Errorf("school not found")
+	ErrAlreadyExists = fmt.Errorf("school already exists")
+)
 
 type SchoolRepository interface {
 	FindAll(ctx context.Context, offset, limit int) ([]*model.School, error)
@@ -48,7 +53,7 @@ func (r *JSONSchoolRepository) load() error {
 		}
 		return fmt.Errorf("read schools file: %w", err)
 	}
-	if len(data) == 0 {
+	if len(bytes.TrimSpace(data)) == 0 {
 		return nil
 	}
 	if err := json.Unmarshal(data, &r.schools); err != nil {
@@ -68,13 +73,34 @@ func (r *JSONSchoolRepository) save() error {
 	return nil
 }
 
-func (r *JSONSchoolRepository) FindAll(_ context.Context, _, _ int) ([]*model.School, error) {
+func (r *JSONSchoolRepository) FindAll(_ context.Context, offset, limit int) ([]*model.School, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	result := make([]*model.School, 0, len(r.schools))
-	for _, s := range r.schools {
-		result = append(result, s)
+	// Collect and sort for deterministic output.
+	keys := make([]string, 0, len(r.schools))
+	for k := range r.schools {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	if limit <= 0 {
+		limit = len(keys)
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > len(keys) {
+		return []*model.School{}, nil
+	}
+	end := offset + limit
+	if end > len(keys) {
+		end = len(keys)
+	}
+
+	result := make([]*model.School, 0, end-offset)
+	for _, k := range keys[offset:end] {
+		result = append(result, r.schools[k])
 	}
 	return result, nil
 }
@@ -114,7 +140,7 @@ func (r *JSONSchoolRepository) Create(_ context.Context, school *model.School) e
 	defer r.mu.Unlock()
 
 	if _, exists := r.schools[school.Code]; exists {
-		return fmt.Errorf("school already exists: %s", school.Code)
+		return fmt.Errorf("%w: %s", ErrAlreadyExists, school.Code)
 	}
 
 	now := time.Now()
@@ -133,7 +159,7 @@ func (r *JSONSchoolRepository) Update(_ context.Context, school *model.School) e
 
 	existing, ok := r.schools[school.Code]
 	if !ok {
-		return fmt.Errorf("school not found: %s", school.Code)
+		return fmt.Errorf("%w: %s", ErrNotFound, school.Code)
 	}
 
 	school.CreatedAt = existing.CreatedAt
@@ -147,7 +173,7 @@ func (r *JSONSchoolRepository) Delete(_ context.Context, code string) error {
 	defer r.mu.Unlock()
 
 	if _, ok := r.schools[code]; !ok {
-		return fmt.Errorf("school not found: %s", code)
+		return fmt.Errorf("%w: %s", ErrNotFound, code)
 	}
 	delete(r.schools, code)
 	return r.save()

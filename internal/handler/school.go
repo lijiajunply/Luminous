@@ -13,15 +13,15 @@ import (
 )
 
 type SchoolHandler struct {
-	Repo repository.SchoolRepository
+	repo repository.SchoolRepository
 }
 
 func NewSchoolHandler(repo repository.SchoolRepository) *SchoolHandler {
-	return &SchoolHandler{Repo: repo}
+	return &SchoolHandler{repo: repo}
 }
 
 func (h *SchoolHandler) ListSchools(c *gin.Context) {
-	schools, err := h.Repo.FindEnabled(c.Request.Context())
+	schools, err := h.repo.FindEnabled(c.Request.Context())
 	if err != nil {
 		slog.Error("failed to list schools", "error", err)
 		response.Error(c, http.StatusInternalServerError, "failed to list schools")
@@ -36,7 +36,7 @@ func (h *SchoolHandler) GetSchool(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "invalid school code")
 		return
 	}
-	school, err := h.Repo.FindByCode(c.Request.Context(), code)
+	school, err := h.repo.FindByCode(c.Request.Context(), code)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			response.Error(c, http.StatusNotFound, "school not found")
@@ -44,6 +44,10 @@ func (h *SchoolHandler) GetSchool(c *gin.Context) {
 			slog.Error("failed to get school", "code", code, "error", err)
 			response.Error(c, http.StatusInternalServerError, "failed to get school")
 		}
+		return
+	}
+	if !school.Enabled {
+		response.Error(c, http.StatusNotFound, "school not found or disabled")
 		return
 	}
 	response.Success(c, http.StatusOK, "success", school)

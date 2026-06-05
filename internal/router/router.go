@@ -6,6 +6,7 @@ import (
 
 	"luminous/internal/handler"
 	"luminous/internal/middleware"
+	"luminous/internal/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,6 +39,10 @@ func SetupRouter(
 		}
 	}
 
+	r.NoRoute(func(c *gin.Context) {
+		response.Error(c, http.StatusNotFound, "route not found")
+	})
+
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -46,7 +51,7 @@ func SetupRouter(
 	{
 		v1.GET("/schools", schoolHandler.ListSchools)
 		v1.GET("/schools/:code", schoolHandler.GetSchool)
-		v1.GET("/App", appHandler.GetTagModel)
+		v1.GET("/app", appHandler.GetTagModel)
 	}
 
 	admin := r.Group("/api/v1/admin")

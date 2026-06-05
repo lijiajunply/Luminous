@@ -65,21 +65,19 @@ func (h *AppHandler) GetTagModel(c *gin.Context) {
 		return
 	}
 
-	var name, downloadUrl string
-	if len(rawData.Softs) > 0 {
-		name = rawData.Softs[0].Name
-		downloadUrl = rawData.Softs[0].SoftUrl
-	}
-
 	result := []model.ReleaseInfo{
 		{
 			TagName: rawData.ReleaseId,
 			Name:    rawData.ReleaseId,
 			Body:    rawData.Context,
-			Assets: []model.AssetInfo{
-				{Name: name, BrowserDownloadUrl: downloadUrl},
-			},
+			Assets:  nil,
 		},
+	}
+
+	if len(rawData.Softs) > 0 {
+		result[0].Assets = []model.AssetInfo{
+			{Name: rawData.Softs[0].Name, BrowserDownloadUrl: rawData.Softs[0].SoftUrl},
+		}
 	}
 
 	response.SuccessList(c, http.StatusOK, "success", len(result), result)

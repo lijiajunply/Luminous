@@ -74,7 +74,7 @@ func TestGetSchoolSuccess(t *testing.T) {
 	r.GET("/api/v1/schools/:code", h.GetSchool)
 
 	school := &model.School{Code: "TEST", Name: "Test U", Website: "https://t.edu", Features: nil, Enabled: true}
-	if err := h.Repo.Create(context.Background(), school); err != nil {
+	if err := h.repo.Create(context.Background(), school); err != nil {
 		t.Fatal(err)
 	}
 
@@ -105,7 +105,9 @@ func TestListSchoolsWithData(t *testing.T) {
 	r.GET("/api/v1/schools", h.ListSchools)
 
 	school := &model.School{Code: "X", Name: "X", Website: "https://x.edu", Features: nil, Enabled: true}
-	h.Repo.Create(context.Background(), school)
+	if err := h.repo.Create(context.Background(), school); err != nil {
+		t.Fatal(err)
+	}
 
 	req := httptest.NewRequest("GET", "/api/v1/schools", nil)
 	w := httptest.NewRecorder()

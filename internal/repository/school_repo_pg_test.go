@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"luminous/internal/config"
@@ -104,6 +105,9 @@ func TestPGFindByCode(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing school")
 	}
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
 }
 
 func TestPGFindEnabled(t *testing.T) {
@@ -168,5 +172,57 @@ func TestPGCreateDuplicate(t *testing.T) {
 
 	if err := repo.Create(testCtx, school); err == nil {
 		t.Fatal("expected error for duplicate code")
+	}
+}
+
+func TestPGCount(t *testing.T) {
+	repo := setupPGTest(t)
+
+	n, err := repo.Count(testCtx)
+	if err != nil {
+		t.Fatalf("Count empty: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("expected 0, got %d", n)
+	}
+
+	repo.Create(testCtx, &model.School{Code: "A", Name: "A", Website: "https://a.edu", Features: nil, Enabled: true})
+	repo.Create(testCtx, &model.School{Code: "B", Name: "B", Website: "https://b.edu", Features: nil, Enabled: true})
+
+	n, err = repo.Count(testCtx)
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("expected 2, got %d", n)
+	}
+}
+
+func TestPGFindAllPagination(t *testing.T) {
+	repo := setupPGTest(t)
+
+	for _, code := range []string{"A", "B", "C", "D", "E"} {
+		repo.Create(testCtx, &model.School{Code: code, Name: code, Website: "https://" + code + ".edu", Features: nil, Enabled: true})
+	}
+
+	// Page 1: first 2 items
+	page1, err := repo.FindAll(testCtx, 0, 2)
+	if err != nil {
+		t.Fatalf("FindAll(0,2): %v", err)
+	}
+	if len(page1) != 2 {
+		t.Fatalf("expected 2, got %d", len(page1))
+	}
+
+	// Page 2: next 2 items
+	page2, err := repo.FindAll(testCtx, 2, 2)
+	if err != nil {
+		t.Fatalf("FindAll(2,2): %v", err)
+	}
+	if len(page2) != 2 {
+		t.Fatalf("expected 2, got %d", len(page2))
+	}
+	if page2[0].Code == page1[0].Code || page2[0].Code == page1[1].Code {
+		t.Fatal("page2 should not overlap with page1")
 	}
 }

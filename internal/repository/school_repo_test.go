@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 
@@ -77,6 +78,9 @@ func TestFindByCode(t *testing.T) {
 	_, err = repo.FindByCode(testCtx, "MISSING")
 	if err == nil {
 		t.Fatal("expected error for missing school")
+	}
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
 
@@ -172,5 +176,50 @@ func TestPersistenceAcrossInstances(t *testing.T) {
 	}
 	if found.Name != "Persist" {
 		t.Fatalf("unexpected name: %s", found.Name)
+	}
+}
+
+func TestCount(t *testing.T) {
+	repo, err := NewJSONSchoolRepository(tempFile(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := repo.Count(testCtx)
+	if err != nil {
+		t.Fatalf("Count empty: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("expected 0, got %d", n)
+	}
+
+	repo.Create(testCtx, &model.School{Code: "A", Name: "A", Website: "https://a.edu", Features: nil, Enabled: true})
+	repo.Create(testCtx, &model.School{Code: "B", Name: "B", Website: "https://b.edu", Features: nil, Enabled: true})
+
+	n, err = repo.Count(testCtx)
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("expected 2, got %d", n)
+	}
+}
+
+func TestFindAllPagination(t *testing.T) {
+	repo, err := NewJSONSchoolRepository(tempFile(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, code := range []string{"A", "B", "C", "D", "E"} {
+		repo.Create(testCtx, &model.School{Code: code, Name: code, Website: "https://" + code + ".edu", Features: nil, Enabled: true})
+	}
+
+	all, err := repo.FindAll(testCtx, 0, 0)
+	if err != nil {
+		t.Fatalf("FindAll(0,0): %v", err)
+	}
+	if len(all) != 5 {
+		t.Fatalf("expected 5, got %d", len(all))
 	}
 }

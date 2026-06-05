@@ -153,7 +153,126 @@ Luminous/
 
 ## 快速开始
 
-### 生产环境（环境变量）
+### 前置条件
+
+- Go 1.26+
+- PostgreSQL（本地或远程）
+- 可选：Make（Linux/macOS），Windows 下直接用 `go` 命令
+
+### 1. 克隆项目
+
+```bash
+git clone <repo-url>
+cd Luminous
+```
+
+### 2. 配置数据库
+
+确保 PostgreSQL 运行中，创建数据库：
+
+```bash
+createdb luminous
+# 或通过 psql:
+# CREATE DATABASE luminous;
+```
+
+### 3. 本地调试
+
+#### 方式一：config.yaml（推荐）
+
+在项目根目录创建 `config.yaml`（已在 `.gitignore` 中忽略，不会提交）：
+
+```yaml
+server:
+  mode: debug          # debug 模式会输出详细请求日志
+  cors_origin: "*"
+
+auth:
+  admin_token: "my-dev-token"
+
+database:
+  dsn: "postgresql://postgres:postgres@localhost:5432/luminous?sslmode=disable"
+  pool_max_conns: 10
+  pool_min_conns: 2
+```
+
+设置环境变量指向该文件，然后启动：
+
+```bash
+# Linux / macOS
+export LUMINOUS_CONFIG_PATH="./config.yaml"
+go run ./cmd/server/
+
+# Windows PowerShell
+$env:LUMINOUS_CONFIG_PATH = ".\config.yaml"
+go run ./cmd/server/
+```
+
+启动后输出：
+
+```
+INFO Starting Luminous server
+INFO Server listening addr=:8080
+WARN TLS not configured — use a reverse proxy for production
+```
+
+#### 方式二：纯环境变量
+
+不创建文件，直接通过环境变量配置：
+
+```bash
+# Linux / macOS
+export LUMINOUS_SERVER_MODE=debug
+export LUMINOUS_DATABASE_DSN="postgresql://postgres:postgres@localhost:5432/luminous?sslmode=disable"
+export LUMINOUS_AUTH_ADMIN_TOKEN="my-dev-token"
+go run ./cmd/server/
+
+# Windows PowerShell
+$env:LUMINOUS_SERVER_MODE = "debug"
+$env:LUMINOUS_DATABASE_DSN = "postgresql://postgres:postgres@localhost:5432/luminous?sslmode=disable"
+$env:LUMINOUS_AUTH_ADMIN_TOKEN = "my-dev-token"
+go run ./cmd/server/
+```
+
+### 4. 导入种子数据
+
+```bash
+go run ./cmd/migrate/ ./data/schools.json
+# 输出: migrated=4 failed=0
+```
+
+### 5. 验证服务
+
+```bash
+# 健康检查
+curl http://localhost:8080/healthz
+# → {"status":"ok"}
+
+# 查询学校列表
+curl http://localhost:8080/api/v1/schools
+
+# 查询单个学校
+curl http://localhost:8080/api/v1/schools/XAUAT
+
+# 管理员接口（需认证）
+curl http://localhost:8080/api/v1/admin/schools \
+  -H "Authorization: Bearer my-dev-token"
+```
+
+### 6. 运行测试
+
+```bash
+# 单元测试（无需数据库）
+go test ./... -short
+
+# 集成测试（需 config.yaml 或 LUMINOUS_DATABASE_DSN）
+go test -tags=integration ./internal/repository/
+
+# 全部检查
+go vet ./...
+```
+
+### 生产环境
 
 ```bash
 # 必需配置
@@ -165,25 +284,6 @@ export LUMINOUS_AUTH_ADMIN_TOKEN="your-admin-secret-token"
 
 # 验证
 curl http://localhost:8080/healthz
-```
-
-### 本地开发（可选 YAML 文件）
-
-```bash
-# 创建本地配置
-cat > config.yaml << 'EOF'
-server:
-  mode: debug
-  cors_origin: "*"
-database:
-  dsn: "postgresql://luminous:luminous@localhost:5432/luminous?sslmode=disable"
-  pool_max_conns: 20
-  pool_min_conns: 5
-EOF
-
-# 通过 LUMINOUS_CONFIG_PATH 加载文件
-export LUMINOUS_CONFIG_PATH="./config.yaml"
-go run ./cmd/server/
 ```
 
 ## 配置参考
